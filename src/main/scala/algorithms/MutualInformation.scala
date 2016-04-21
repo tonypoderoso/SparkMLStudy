@@ -80,7 +80,7 @@ class MutualInformation {
     val output = BDM.zeros[Int](num_state1,num_state2)
     val rsum: BDV[Int] = BDV.zeros[Int](num_state1)
     val csum: BDV[Int] = BDV.zeros[Int](num_state2)
-    val msum = vec1.length
+    val msum: Int = vec1.length
 
     vec1.zip(vec2).map { x =>
       output(x._1,x._2) = output(x._1,x._2) + 1
@@ -89,13 +89,15 @@ class MutualInformation {
     }
 
     val MI = output.toDenseMatrix.mapPairs{ (coo, x) =>
-      if (x>0)
-        x * math.log(x * msum /(rsum(coo._1.toInt) * csum(coo._2.toInt)) ) / math.log(2)
-      else
+      if (x>0) {
+        val tmp = msum.toDouble / (rsum(coo._1) * csum(coo._2))
+        //println("the tmp :" +tmp +" the x : "+ +x + "  i-th " +rsum(coo._1)+"  j-th "+csum(coo._2)+" msun: " +msum)
+        x * math.log(x*tmp) / math.log(2)
+      }else
         0
     }.toArray.reduce(_ + _)
 
-
+/*
     println(" rsum : ")
     rsum.foreach(print)
     println("\ncsum : ")
@@ -105,7 +107,7 @@ class MutualInformation {
     println("\nVector2 : ")
     vec2.foreach(print)
     println("\nMI value : "+ MI/msum)
-
+*/
     MI/msum
 
 
@@ -117,17 +119,17 @@ class MutualInformation {
 
     val indexKey: RDD[(Long, Array[Int])] =input.zipWithIndex().map{ x => (x._2,x._1)}
 
-
+    indexKey.cache()
 
     output.toDenseMatrix.mapPairs { (coor, x) =>
       if (coor._1 >= coor._2) {
 
-        val a: ParArray[Int] =indexKey.lookup(coor._1-1).flatten.toParArray
-        val b: ParArray[Int] =indexKey.lookup(coor._2-1).flatten.toParArray
-        a.foreach(print)
-        println("\\")
-        b.foreach(print)
-        println("\\")
+        val a: ParArray[Int] =indexKey.lookup(coor._1).flatten.toParArray
+        val b: ParArray[Int] =indexKey.lookup(coor._2).flatten.toParArray
+        //a.foreach(print)
+        //println("\\")
+        //b.foreach(print)
+        //println("\\")
         output(coor._1,coor._2) = computeMutualInformation(a, b, num_state1, num_state2)
       }
 
