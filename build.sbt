@@ -1,4 +1,4 @@
-name := "mltest01"
+name := "SparkMLStudy"
 
 version := "1.0"
 
