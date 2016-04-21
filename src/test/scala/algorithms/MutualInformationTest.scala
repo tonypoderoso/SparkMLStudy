@@ -1,5 +1,6 @@
 package algorithms
 
+import breeze.linalg.DenseMatrix
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
 import org.apache.spark.rdd.RDD
@@ -28,9 +29,20 @@ class MutualInformationTest extends FunSuite{
 
     val trans: RDD[DenseVector] = mi.rddTranspose(unitdata)
 
-    unitdata.foreach(println)
+    val dvec: RDD[Array[Int]] = mi.discretizeVector(trans,5)
+
+    dvec.take(5).map{x=>
+      x.foreach(print)
+      println(" \\\\\\")
+    }
+
+   // val mut =mi.computeMutualInformation(dvec.first(),dvec.first,5,5)
+
+    val MIMAT: DenseMatrix[Double] =mi.computeMIMatrix(dvec,5,5)
+
+    MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
+
     println("///////////////////////////////////////////")
-    trans.foreach(println)
 
     sc.stop()
 

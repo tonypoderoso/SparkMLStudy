@@ -16,7 +16,7 @@ class LinearExampleDataset(n: Int, d: Int, noise: Double) {
   val labeledPoints: Seq[LabeledPoint]= {
     val xs = (1 to n).map(i => BDV(g.sample(d).toArray))
 
-    println(xs(1))
+    //println(xs(1))
 
     val w = BDV(weights)
 
