@@ -1,7 +1,7 @@
 package algorithms
 
 import breeze.linalg.DenseMatrix
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
 import org.apache.spark.rdd.RDD
 import org.scalatest.FunSuite
@@ -11,9 +11,11 @@ import org.scalatest.FunSuite
   */
 class MutualInformationTest extends FunSuite{
   test("Simple run of least-squares regression"){
-    val sc = new SparkContext("local","LeastSquaresRegressionTest")
 
-    val dataset = new LinearExampleDataset(100,99,0.1)
+    val conf = new SparkConf().setExecutorEnv("spark.executor.memory","2g")
+    val sc = new SparkContext("local","LeastSquaresRegressionTest")
+    val feature_dimension = 500
+    val dataset = new LinearExampleDataset(100000,feature_dimension-1,0.1)
 
 
     //println("//////////////////////////////")
@@ -38,7 +40,7 @@ class MutualInformationTest extends FunSuite{
 
    // val mut =mi.computeMutualInformation(dvec.first(),dvec.first,5,5)
 
-    val MIMAT: DenseMatrix[Double] =mi.computeMIMatrix(dvec,100,100)
+    val MIMAT: DenseMatrix[Double] =mi.computeMIMatrix(dvec,feature_dimension,feature_dimension)
 
     MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
 
