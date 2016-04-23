@@ -14,7 +14,7 @@ class MutualInformationTest extends FunSuite{
 
     val conf = new SparkConf().setExecutorEnv("spark.executor.memory","2g")
     val sc = new SparkContext("local","LeastSquaresRegressionTest")
-    val feature_dimension = 500
+    val feature_dimension = 400
     val dataset = new LinearExampleDataset(100000,feature_dimension-1,0.1)
 
 
