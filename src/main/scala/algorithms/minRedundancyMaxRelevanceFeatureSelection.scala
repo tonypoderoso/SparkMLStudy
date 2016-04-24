@@ -19,7 +19,7 @@ class minRedundancyMaxRelevanceFeatureSelection {
     mRMRSorting(0) = argmax(f.toArray)
     printf("THe first f:  " + f.map(x=> x.toString + ","))
     printf("the maximum argument is : " +argmax(f.toArray))
-    selected(mRMRSorting(0)) = 1
+    selected(mRMRSorting(0)) = 1.0
     println("The selected vector is : " + selected.map(x=>x.toString + ","))
 
     println(" Inside MRMR")
@@ -32,28 +32,24 @@ class minRedundancyMaxRelevanceFeatureSelection {
 
     for (kk<-1 until num_feat){
     val red: IndexedSeq[Double] = tmp.map { case (x: BDV[Double], y) =>
-      println( "Iteration : "+ kk)
+      //println( "Iteration : "+ kk)
       if (selected(y) == 1.0) {
         0.0
       }else {
-        //println("\nThe index : " + y)
-        //println("\nthe x : " + x.map(x=> x.toString + " " ).reduce(_+_))
-        //println("\nThe selected: " + selected.map(x => x.toString + " " ).reduce(_+_))
         val ret = x.t * selected
-        println("\nThe result: " + ret + " y : " + y)
+        //println("\nThe result: " + ret + " y : " + y)
         ret
       }
     }
-      val newf: BDV[Double] =selected.mapPairs{ (x,y)=>if (y==1.0) 0.0 else f(x)}
-      val medicalc=newf+BDV(red.toArray).map(_/(-kk))
-      println(" The criterion : ")
-      medicalc.foreach(println)
-
-      mRMRSorting(kk)=argmax(medicalc)
+      val newf: BDV[Double] =selected.mapPairs{ (x,y)=>if (y == 1.0) Double.MinValue else f(x)}
+      val medicalc: BDV[Double] =newf+BDV(red.toArray).map(_/(-kk))
+      mRMRSorting(kk) = argmax(medicalc)
       selected(argmax(medicalc))=1.0
+
+
+      println(" The criterion : " + medicalc.map(x=>x.toString+" , "))
       println("THe MRMR " + mRMRSorting.map(x => x.toString + ","))
       println("The sum is " + sum(selected))
-      //red.map(x=>0)
     }
     mRMRSorting
   }

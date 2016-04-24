@@ -12,7 +12,7 @@ import org.scalatest.FunSuite
 class MutualInformationTest extends FunSuite{
   test("Simple run of least-squares regression"){
     val sc = new SparkContext("local","LeastSquaresRegressionTest")
-    val num_features = 10
+    val num_features = 100
     val num_samples = 10000
     val num_bins = 100
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
