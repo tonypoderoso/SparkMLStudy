@@ -44,7 +44,7 @@ class MutualInformation {
 
   def rddTranspose(rdd: RDD[DenseVector]): RDD[DenseVector] = {
     // Split the matrix into one number per line.
-    val byColumnAndRow: RDD[(Int, (Long, Double))] = rdd.zipWithIndex.flatMap{
+    val byColumnAndRow: RDD[(Int, (Long, Double))] = rdd.zipWithIndex.flatMap {
       case (row: Vector, rowIndex: Long) => row.toArray.zipWithIndex.map {
         case (number, columnIndex) => columnIndex ->(rowIndex, number)
       }
@@ -58,7 +58,7 @@ class MutualInformation {
     return transposed
   }
 
-  def discretizeVector(input:RDD[DenseVector],level: Int): RDD[Array[Int]] ={
+  def discretizeVector(input: RDD[DenseVector], level: Int): RDD[Array[Int]] = {
 
     input.map { vec =>
 
@@ -70,34 +70,34 @@ class MutualInformation {
       val pos: BDV[Double] = bin_level.map { x => sorted_vec(x - 1) }
 
       vec.toArray.map { x =>
-        sum((BDV.fill(level) (x)
-           :> pos).toArray.map(y => if (y == true) 1 else 0))
+        sum((BDV.fill(level)(x)
+          :> pos).toArray.map(y => if (y == true) 1 else 0))
       }
     }
   }
 
-  def computeMutualInformation(vec1:ParArray[Int],vec2:ParArray[Int],num_state1:Int,num_state2:Int): Double ={
-    val output = BDM.zeros[Int](num_state1,num_state2)
+  def computeMutualInformation(vec1: ParArray[Int], vec2: ParArray[Int], num_state1: Int, num_state2: Int): Double = {
+    val output = BDM.zeros[Int](num_state1, num_state2)
     val rsum: BDV[Int] = BDV.zeros[Int](num_state1)
     val csum: BDV[Int] = BDV.zeros[Int](num_state2)
     val msum: Int = vec1.length
 
     vec1.zip(vec2).map { x =>
-      output(x._1,x._2) = output(x._1,x._2) + 1
+      output(x._1, x._2) = output(x._1, x._2) + 1
       rsum(x._1) = rsum(x._1) + 1
       csum(x._2) = csum(x._2) + 1
     }
 
-    val MI = output.toDenseMatrix.mapPairs{ (coo, x) =>
-      if (x>0) {
+    val MI = output.mapPairs { (coo, x) =>
+      if (x > 0) {
         val tmp = msum.toDouble / (rsum(coo._1) * csum(coo._2))
         //println("the tmp :" +tmp +" the x : "+ +x + "  i-th " +rsum(coo._1)+"  j-th "+csum(coo._2)+" msun: " +msum)
-        x * math.log(x*tmp) / math.log(2)
-      }else
+        x * math.log(x * tmp) / math.log(2)
+      } else
         0
     }.toArray.reduce(_ + _)
 
-/*
+    /*
     println(" rsum : ")
     rsum.foreach(print)
     println("\ncsum : ")
@@ -108,38 +108,38 @@ class MutualInformation {
     vec2.foreach(print)
     println("\nMI value : "+ MI/msum)
 */
-    MI/msum
+    MI / msum
 
 
+  }
 
-   }
+  def computeMIMatrix(input: RDD[Array[Int]],num_feature:Int, num_state1: Int, num_state2: Int): BDM[Double] = {
+    val output = BDM.zeros[Double](num_feature, num_feature)
 
-  def computeMIMatrix(input:RDD[Array[Int]],num_state1:Int,num_state2:Int): BDM[Double] ={
-    val output = BDM.zeros[Double](num_state1,num_state2)
-
-    val indexKey: RDD[(Long, Array[Int])] =input.zipWithIndex().map{ x => (x._2,x._1)}
+    val indexKey: RDD[(Long, Array[Int])] = input.zipWithIndex().map { x => (x._2, x._1) }
 
     indexKey.cache()
 
-    output.toDenseMatrix.mapPairs { (coor, x) =>
+    output.mapPairs { (coor, x) =>
       if (coor._1 >= coor._2) {
 
-        val a: ParArray[Int] =indexKey.lookup(coor._1).flatten.toParArray
-        val b: ParArray[Int] =indexKey.lookup(coor._2).flatten.toParArray
+        val a: ParArray[Int] = indexKey.lookup(coor._1).flatten.toParArray
+        val b: ParArray[Int] = indexKey.lookup(coor._2).flatten.toParArray
         //a.foreach(print)
         //println("\\")
         //b.foreach(print)
         //println("\\")
-        output(coor._1,coor._2) = computeMutualInformation(a, b, num_state1, num_state2)
+        output(coor._1, coor._2) = computeMutualInformation(a, b, num_state1, num_state2)
       }
 
     }
-
+    println(";laksjfkdsll........................................")
+    output.mapPairs { (coor, x) =>
+      if (coor._1 < coor._2) {
+        output(coor._1, coor._2) = output(coor._2, coor._1)
+      }
+    }
     output
   }
-
-
-
-
-
 }
+
