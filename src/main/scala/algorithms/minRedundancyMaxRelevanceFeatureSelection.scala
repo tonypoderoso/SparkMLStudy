@@ -31,17 +31,19 @@ class minRedundancyMaxRelevanceFeatureSelection {
       if (selected(y) == 1) {
         0
       }else {
-        println("\nThe index : " + y)
-        println("\nthe x : " + x.map(x=> x.toString + " " ).reduce(_+_))
-        println("\nThe selected: " + selected.map(x => x.toString + " " ).reduce(_+_))
-        val ret: Double = x.t * selected
-        println("\nThe result: " + ret)
-        ret
+        //println("\nThe index : " + y)
+        //println("\nthe x : " + x.map(x=> x.toString + " " ).reduce(_+_))
+        //println("\nThe selected: " + selected.map(x => x.toString + " " ).reduce(_+_))
+         x.t * selected
+        //println("\nThe result: " + ret)
       }
     }
-      mRMRSorting(kk)=argmax(red.toArray)
+      val medicalc=f+BDV(red.toArray).map(_/(-kk))
+      println( "Iteration : "+ kk)
+      medicalc.foreach(println)
+      mRMRSorting(kk)=argmax(medicalc)
       selected(mRMRSorting(kk))=1
-
+      red.map(x=>0)
     }
     mRMRSorting
   }
