@@ -12,8 +12,10 @@ import org.scalatest.FunSuite
 class MutualInformationTest extends FunSuite{
   test("Simple run of least-squares regression"){
     val sc = new SparkContext("local","LeastSquaresRegressionTest")
-
-    val dataset = new LinearExampleDataset(100,99,0.1)
+    val num_features = 1000
+    val num_samples  = 10000
+    val num_bins=10
+    val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
 
 
     //println("//////////////////////////////")
@@ -29,7 +31,7 @@ class MutualInformationTest extends FunSuite{
 
     val trans: RDD[DenseVector] = mi.rddTranspose(unitdata)
 
-    val dvec: RDD[Array[Int]] = mi.discretizeVector(trans,10)
+    val dvec: RDD[Array[Int]] = mi.discretizeVector(trans,num_bins)
 
     dvec.take(5).map{x=>
       x.foreach(print)
@@ -38,18 +40,12 @@ class MutualInformationTest extends FunSuite{
 
    // val mut =mi.computeMutualInformation(dvec.first(),dvec.first,5,5)
 
-    val MIMAT: DenseMatrix[Double] =mi.computeMIMatrix(dvec,100,100)
+    val MIMAT: DenseMatrix[Double] =mi.computeMIMatrix(dvec,num_features,num_bins,num_bins)
 
     MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
 
     println("///////////////////////////////////////////")
-    val temp = new Array[Array[Double]](5)
-    MIMAT.mapPairs{
-    }
-  }
-    for (i<-0 until 5 ; j<-0 until 5){
-      temp.apply(i).apply(j)=
-    sc.stop()
+
 
   }
 

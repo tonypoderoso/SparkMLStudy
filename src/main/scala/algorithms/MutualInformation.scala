@@ -114,8 +114,8 @@ class MutualInformation {
 
    }
 
-  def computeMIMatrix(input:RDD[Array[Int]],num_state1:Int,num_state2:Int): BDM[Double] ={
-    val output = BDM.zeros[Double](num_state1,num_state2)
+  def computeMIMatrix(input:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int): BDM[Double] ={
+    val output = BDM.zeros[Double](num_features,num_features)
 
     val indexKey: RDD[(Long, Array[Int])] =input.zipWithIndex().map{ x => (x._2,x._1)}
 
