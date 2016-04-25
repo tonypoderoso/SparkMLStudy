@@ -135,6 +135,13 @@ class MutualInformation {
 
     }
 
+    output.toDenseMatrix.mapPairs { (coor, x) =>
+      if (coor._1 < coor._2) {
+        output(coor._1,coor._2) = output(coor._2,coor._1)
+      }
+
+    }
+
     output
   }
 
