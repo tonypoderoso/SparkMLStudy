@@ -2,6 +2,7 @@ package algorithms
 
 //import org.apache.spark
 import org.apache.spark.SparkContext
+import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.attribute.{AttributeGroup, NominalAttribute, NumericAttribute}
 import org.scalatest.FunSuite
 //import org.apache.spark.ml.param
@@ -68,9 +69,11 @@ class SparkMLRandomForestTest extends FunSuite{
     val df:DataFrame = setMetadata(lds,categoricalFeatures,0)
     val model = rf.fit(df)
 
+
     val importances: Vector = model.featureImportances
     val mostImportantFeature: Int = importances.argmax
     printf("The most important feature  is " + mostImportantFeature)
+
     printf("Importance ranking"+ importances.toArray.map(x => x.toString +","))
 
 
