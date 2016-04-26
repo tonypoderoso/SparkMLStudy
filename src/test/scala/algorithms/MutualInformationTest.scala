@@ -1,7 +1,7 @@
 package algorithms
 
 import breeze.linalg.{DenseMatrix, Transpose, DenseVector => BDV}
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
 import org.apache.spark.rdd.RDD
 import org.scalatest.FunSuite
@@ -11,10 +11,15 @@ import org.scalatest.FunSuite
   */
 class MutualInformationTest extends FunSuite{
   test("Simple run of least-squares regression"){
-    val sc = new SparkContext("local","LeastSquaresRegressionTest")
-    val num_features = 100
-    val num_samples = 10000
-    val num_bins = 100
+    val sconf=new SparkConf()
+      .setMaster("local")
+      .setAppName("MutualInformationTest")
+      .set("spark.driver.memory","12G")
+
+    val sc = new SparkContext(sconf)
+    val num_features = 2000
+    val num_samples = 100000
+    val num_bins = 200
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
 
 
