@@ -4,12 +4,11 @@ package algorithms
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.attribute.{AttributeGroup, NominalAttribute, NumericAttribute}
 import org.scalatest.FunSuite
-//import org.apache.spark.ml.param
 import org.apache.spark.ml.regression._
-//import org.apache.spark.ml.classification.RandomForestClassifier
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericMutableRow
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
 /**
@@ -23,6 +22,8 @@ class SparkMLRandomForestTest extends FunSuite{
     val sqlContext = SQLContext.getOrCreate(data.sparkContext)
     import sqlContext.implicits._
     val df = data.toDF()
+
+
     val numFeatures = data.first().features.size
     val featuresAttributes = Range(0, numFeatures).map { feature =>
       if (categoricalFeatures.contains(feature)) {
@@ -56,6 +57,10 @@ class SparkMLRandomForestTest extends FunSuite{
     // println("//////////////////////////////")
 
     val lds: RDD[LabeledPoint] = sc.parallelize(dataset.labeledPoints)
+
+
+
+
     val rf= new RandomForestRegressor()
       .setImpurity("variance")
       //.setMaxDepth(3)
@@ -66,11 +71,16 @@ class SparkMLRandomForestTest extends FunSuite{
 
     val categoricalFeatures = Map.empty[Int,Int]
     val df:DataFrame = setMetadata(lds,categoricalFeatures,0)
+
+
+
     val model = rf.fit(df)
+
 
     val importances: Vector = model.featureImportances
     val mostImportantFeature: Int = importances.argmax
     printf("The most important feature  is " + mostImportantFeature)
+
     printf("Importance ranking"+ importances.toArray.map(x => x.toString +","))
 
 
