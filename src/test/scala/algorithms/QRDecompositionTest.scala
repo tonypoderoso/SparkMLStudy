@@ -2,10 +2,13 @@ package algorithms
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import breeze.numerics._
+import breeze.stats.distributions.Gaussian
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.RowMatrix
-import org.apache.spark.mllib.linalg.{Matrix, QRDecomposition, Vectors}
+import org.apache.spark.mllib.linalg.{Matrix, QRDecomposition, Vector, Vectors}
 import org.scalatest.FunSuite
+
+import scala.collection.immutable.IndexedSeq
 
 /**
   * Created by tonyp on 2016-04-26.
@@ -30,14 +33,18 @@ class QRDecompositionTest extends FunSuite{
     G.valuesIterator.map(math.abs).sum < 1e-6
   }
 
-
-
-
   test("QR Decomposition") {
+
+    val g = new Gaussian(0.0,1.0)
+
+    val d =10000
+    val nn = 10000
+    val xs: IndexedSeq[Vector] =(1 to nn).map(i => Vectors.dense( g.sample(d).toArray))
+
     val m = 4
     val n = 3
-    val arr = Array(0.0, 3.0, 6.0, 9.0, 1.0, 4.0, 7.0, 0.0, 2.0, 5.0, 8.0, 1.0)
-    val denseData = Seq(
+    val arr: Array[Double] = Array(0.0, 3.0, 6.0, 9.0, 1.0, 4.0, 7.0, 0.0, 2.0, 5.0, 8.0, 1.0)
+    val denseData: Seq[Vector] = Seq(
       Vectors.dense(0.0, 1.0, 2.0),
       Vectors.dense(3.0, 4.0, 5.0),
       Vectors.dense(6.0, 7.0, 8.0),
@@ -52,8 +59,9 @@ class QRDecompositionTest extends FunSuite{
 
     val sc = new SparkContext("local","LeastSquaresRegressionTest")
 
-      val denseMat = new RowMatrix(sc.parallelize(denseData, 2))
+      //val denseMat = new RowMatrix(sc.parallelize(denseData, 2))
       val sparseMat = new RowMatrix(sc.parallelize(sparseData, 2))
+      val denseMat =  new RowMatrix(sc.parallelize(xs,4))
 
 
 

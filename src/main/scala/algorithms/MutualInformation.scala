@@ -1,17 +1,17 @@
 package algorithms
 
 
-//import org.apache.spark.ml.feature.MinMaxScaler
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector}
+import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Vector, _}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import breeze.linalg._
 import breeze.numerics.abs
-import org.apache.spark.mllib.linalg.{DenseVector, Vector}
-import org.apache.spark.mllib.linalg.distributed.RowMatrix
+import org.apache.spark.SparkContext
+import org.apache.spark.mllib.linalg.distributed.{IndexedRowMatrix, RowMatrix}
 
 import scala.collection.parallel.mutable.ParArray
+import scala.util.Random
 
 //import org.apache.spark.sql._
 
@@ -76,7 +76,7 @@ class MutualInformation {
     }
   }
 
-  def computeMutualInformation(vec1:ParArray[Int],vec2:ParArray[Int],num_state1:Int,num_state2:Int): Double ={
+  def computeMutualInformation(vec1:Array[Int],vec2:Array[Int],num_state1:Int,num_state2:Int): Double ={
     val output = BDM.zeros[Int](num_state1,num_state2)
     val rsum: BDV[Int] = BDV.zeros[Int](num_state1)
     val csum: BDV[Int] = BDV.zeros[Int](num_state2)
@@ -88,7 +88,7 @@ class MutualInformation {
       csum(x._2) = csum(x._2) + 1
     }
 
-    val MI = output.toDenseMatrix.mapPairs{ (coo, x) =>
+    val MI = output.mapPairs{ (coo, x) =>
       if (x>0) {
         val tmp = msum.toDouble / (rsum(coo._1) * csum(coo._2))
         //println("the tmp :" +tmp +" the x : "+ +x + "  i-th " +rsum(coo._1)+"  j-th "+csum(coo._2)+" msun: " +msum)
@@ -116,32 +116,37 @@ class MutualInformation {
 
   def computeMIMatrix(input:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int): BDM[Double] ={
     val output = BDM.zeros[Double](num_features,num_features)
-
+    //val rdd = sc.parallelize(Seq(output),5)
+    //val outputrow=new Rowmatrix(sc.parallelize(output.to,2))
     val indexKey: RDD[(Long, Array[Int])] =input.zipWithIndex().map{ x => (x._2,x._1)}
 
-    indexKey.cache()
+    //val rdd :IndexedRowMatrix = _
 
-    output.toDenseMatrix.mapPairs { (coor, x) =>
+    /*for (i<-1 to num_features; j<-i to num_features){
+
+      val a: ParArray[Int] =indexKey.lookup(i).flatten.toParArray
+      val b: ParArray[Int] =indexKey.lookup(j).flatten.toParArray
+      output(i,j) = computeMutualInformation(a, b, num_state1, num_state2)
+
+    }
+    */
+
+    output.mapPairs { (coor, x) =>
       if (coor._1 >= coor._2) {
-
-        val a: ParArray[Int] =indexKey.lookup(coor._1).flatten.toParArray
-        val b: ParArray[Int] =indexKey.lookup(coor._2).flatten.toParArray
+        val a: Array[Int] =indexKey.lookup(coor._1).flatten.toArray
+        val b: Array[Int] =indexKey.lookup(coor._2).flatten.toArray
         //a.foreach(print)
         //println("\\")
         //b.foreach(print)
         //println("\\")
         output(coor._1,coor._2) = computeMutualInformation(a, b, num_state1, num_state2)
       }
-
     }
-
-    output.toDenseMatrix.mapPairs { (coor, x) =>
+    output.mapPairs { (coor, x) =>
       if (coor._1 < coor._2) {
         output(coor._1,coor._2) = output(coor._2,coor._1)
       }
-
     }
-
     output
   }
 

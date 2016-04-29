@@ -3,6 +3,7 @@ package algorithms
 import breeze.linalg.{DenseMatrix, Transpose, DenseVector => BDV}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
+import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.scalatest.FunSuite
 
@@ -12,7 +13,7 @@ import org.scalatest.FunSuite
 class MutualInformationTest extends FunSuite{
   test("Simple run of least-squares regression"){
     val sc = new SparkContext("local","LeastSquaresRegressionTest")
-    val num_features = 1000
+    val num_features = 4
     val num_samples = 100000
     val num_bins = 200
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
@@ -23,7 +24,7 @@ class MutualInformationTest extends FunSuite{
     //dataset.labeledPoints.map(_.features).take(10).foreach(println)
    // println("//////////////////////////////")
 
-    val lds = sc.parallelize(dataset.labeledPoints)
+    val lds: RDD[LabeledPoint] = sc.parallelize(dataset.labeledPoints)
 
     val mi = new MutualInformation
 
