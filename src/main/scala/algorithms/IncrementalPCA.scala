@@ -27,7 +27,7 @@ class IncrementalPCA {
         data
 
     }
-    val res = data - U0.t*data_proj.t
+    //val res = data - U0.t*data_proj.t
 
 
   }

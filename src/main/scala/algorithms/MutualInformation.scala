@@ -13,10 +13,6 @@ import org.apache.spark.mllib.linalg.distributed.{IndexedRowMatrix, RowMatrix}
 import scala.collection.parallel.mutable.ParArray
 import scala.util.Random
 
-//import org.apache.spark.sql._
-
-
-
 /**
   * Created by tonypark on 2016. 4. 19..
   */

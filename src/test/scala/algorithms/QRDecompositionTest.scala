@@ -3,7 +3,7 @@ package algorithms
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import breeze.numerics._
 import breeze.stats.distributions.Gaussian
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.distributed.RowMatrix
 import org.apache.spark.mllib.linalg.{Matrix, QRDecomposition, Vector, Vectors}
 import org.scalatest.FunSuite
@@ -37,7 +37,7 @@ class QRDecompositionTest extends FunSuite{
 
     val g = new Gaussian(0.0,1.0)
 
-    val d =10000
+    val d =4000
     val nn = 10000
     val xs: IndexedSeq[Vector] =(1 to nn).map(i => Vectors.dense( g.sample(d).toArray))
 
@@ -57,7 +57,9 @@ class QRDecompositionTest extends FunSuite{
       Vectors.sparse(3, Seq((0, 9.0), (2, 1.0)))
     )
 
-    val sc = new SparkContext("local","LeastSquaresRegressionTest")
+    //val sconf = new SparkConf().setMaster("local[*]").setAppName("QR Decomposiotn").set("")
+    val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("QR Decomposition")
+      .set("spark.driver.memory","7g"))
 
       //val denseMat = new RowMatrix(sc.parallelize(denseData, 2))
       val sparseMat = new RowMatrix(sc.parallelize(sparseData, 2))
