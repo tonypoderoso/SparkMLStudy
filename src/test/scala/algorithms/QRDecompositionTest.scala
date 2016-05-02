@@ -39,6 +39,7 @@ class QRDecompositionTest extends FunSuite{
 
     val d =4000
     val nn = 10000
+
     val xs: IndexedSeq[Vector] =(1 to nn).map(i => Vectors.dense( g.sample(d).toArray))
 
     val m = 4
@@ -50,6 +51,9 @@ class QRDecompositionTest extends FunSuite{
       Vectors.dense(6.0, 7.0, 8.0),
       Vectors.dense(9.0, 0.0, 1.0)
     )
+    val ttt: Seq[Vector] = {
+      denseData.take(0)
+    }
     val sparseData = Seq(
       Vectors.sparse(3, Seq((1, 1.0), (2, 2.0))),
       Vectors.sparse(3, Seq((0, 3.0), (1, 4.0), (2, 5.0))),
@@ -62,7 +66,7 @@ class QRDecompositionTest extends FunSuite{
       .set("spark.driver.memory","7g"))
 
       //val denseMat = new RowMatrix(sc.parallelize(denseData, 2))
-      val sparseMat = new RowMatrix(sc.parallelize(sparseData, 2))
+      val sparseMat: RowMatrix = new RowMatrix(sc.parallelize(sparseData, 2))
       val denseMat =  new RowMatrix(sc.parallelize(xs,4))
 
 

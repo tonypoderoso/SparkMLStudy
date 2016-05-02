@@ -1,8 +1,10 @@
 package algorithms
 
 import breeze.linalg.{DenseMatrix, Transpose, DenseVector => BDV}
+import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
+import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.scalatest.FunSuite
 
@@ -12,14 +14,14 @@ import org.scalatest.FunSuite
 class MutualInformationTest extends FunSuite{
   test("Simple run of least-squares regression"){
     val sconf=new SparkConf()
-      .setMaster("local")
+      .setMaster("local[*]")
       .setAppName("MutualInformationTest")
-      .set("spark.driver.memory","12G")
+      .set("spark.driver.memory","15G")
 
     val sc = new SparkContext(sconf)
-    val num_features = 2000
-    val num_samples = 100000
-    val num_bins = 200
+    val num_features = 5
+    val num_samples = 100
+    val num_bins = 5
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
 
 
@@ -45,12 +47,22 @@ class MutualInformationTest extends FunSuite{
 
    // val mut =mi.computeMutualInformation(dvec.first(),dvec.first,5,5)
 
-    val MIMAT: DenseMatrix[Double] =mi.computeMIMatrix(dvec,num_features,num_bins,num_bins)
+
+
+    val MIRDD =mi.computeMIMatrixRDD(dvec,num_features,num_bins,num_bins)
+
+    MIRDD.foreach{x=>println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
+
+
+
+    /*val MIMAT: DenseMatrix[Double] =mi.computeMIMatrix(dvec,num_features,num_bins,num_bins)
+
 
     MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
     println(MIMAT.rows)
     println(MIMAT.cols)
     println("///////////////////////////////////////////")
+
 
     val mrMR=new minRedundancyMaxRelevanceFeatureSelection
     val H: DenseMatrix[Double] =MIMAT(0 until MIMAT.rows-1,0 until MIMAT.cols-1)
@@ -60,7 +72,7 @@ class MutualInformationTest extends FunSuite{
 
     val mrMRFS = mrMR.evaluate( H,f, num_features-1)
     println("the result is: ")
-    mrMRFS.foreach(println)
+    mrMRFS.foreach(println)*/
 
   }
 }

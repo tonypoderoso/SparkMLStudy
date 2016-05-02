@@ -1,17 +1,16 @@
 package algorithms
 
 
+
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Vector, _}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import breeze.linalg._
 import breeze.numerics.abs
-import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.distributed.{IndexedRowMatrix, RowMatrix}
+import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
+import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, IndexedRowMatrix, MatrixEntry, RowMatrix}
 
-import scala.collection.parallel.mutable.ParArray
-import scala.util.Random
+import scala.collection.immutable.IndexedSeq
 
 /**
   * Created by tonypark on 2016. 4. 19..
@@ -31,27 +30,25 @@ class MutualInformation {
     val Min: BDV[Double] = new BDV(featuresRow.computeColumnSummaryStatistics().min.toArray)
     val FinalMax: BDV[Double] = max(abs(Max), abs(Min))
 
-    val result: RDD[DenseVector] = features.map((v: Vector) => new DenseVector((BDV(v.toArray) :/ FinalMax).toArray))
+    features.map((v: Vector) => new DenseVector((BDV(v.toArray) :/ FinalMax).toArray))
 
-    return result
 
   }
 
 
   def rddTranspose(rdd: RDD[DenseVector]): RDD[DenseVector] = {
     // Split the matrix into one number per line.
-    val byColumnAndRow: RDD[(Int, (Long, Double))] = rdd.zipWithIndex.flatMap{
+    val byColumnAndRow = rdd.zipWithIndex.flatMap{
       case (row: Vector, rowIndex: Long) => row.toArray.zipWithIndex.map {
-        case (number, columnIndex) => columnIndex ->(rowIndex, number)
+        case (number: Double, columnIndex: Int) => {columnIndex.->(rowIndex, number)}
       }
     }
     // Build up the transposed matrix. Group and sort by column index first.
     val byColumn: RDD[Iterable[(Long, Double)]] = byColumnAndRow.groupByKey.sortByKey().values
     // Then sort by row index.
-    val transposed: RDD[DenseVector] = byColumn.map {
+    byColumn.map {
       indexedRow => new DenseVector(indexedRow.toArray.sortBy(_._1).map(_._2))
     }
-    return transposed
   }
 
   def discretizeVector(input:RDD[DenseVector],level: Int): RDD[Array[Int]] ={
@@ -71,6 +68,8 @@ class MutualInformation {
       }
     }
   }
+
+
 
   def computeMutualInformation(vec1:Array[Int],vec2:Array[Int],num_state1:Int,num_state2:Int): Double ={
     val output = BDM.zeros[Int](num_state1,num_state2)
@@ -110,25 +109,63 @@ class MutualInformation {
 
    }
 
+
+  def computeMIMatrixRDD(input:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int)
+  : RDD[MatrixEntry] = {
+
+    val sc = input.sparkContext
+
+    val indexKey: RDD[(Long, Array[Int])] = input.zipWithIndex().map { x => (x._2, x._1) }
+
+    indexKey.cache()
+
+    //val entries: RDD[MatrixEntry] =
+    /*sc.parallelize(
+      (0 until num_features).map { row =>
+        (row until num_features).map { col =>
+          val a: Array[Int] = indexKey.lookup(row).flatten.toArray
+          val b: Array[Int] = indexKey.lookup(col).flatten.toArray
+          val tmp = computeMutualInformation(a, b, num_state1, num_state2)
+          if (row == col)
+            Seq(MatrixEntry(row, col, tmp))
+          else
+            Seq(MatrixEntry(row, col, tmp), MatrixEntry(col, row, tmp))
+        }.flatten
+      }.flatten)*/
+    sc.parallelize(
+      (0 until num_features).flatMap{ row =>
+        (row until num_features).flatMap { col =>
+          println("Computhing " +row.toString+ "-th row  and "+ col.toString + "-th column")
+          val a: Array[Int] = indexKey.lookup(row).flatten.toArray
+          val b: Array[Int] = indexKey.lookup(col).flatten.toArray
+          val tmp = computeMutualInformation(a, b, num_state1, num_state2)
+          print(" First Array : ")
+          a.map(i=>i.toString + " , ").foreach(print)
+          println("")
+          print(" Second Array : ")
+          b.map(i=>i.toString + " , ").foreach(print)
+          println("")
+          println(" The Mutual Information value :" + tmp)
+          if (row == col)
+            Seq(MatrixEntry(row, col, tmp))
+          else
+            Seq(MatrixEntry(row, col, tmp), MatrixEntry(col, row, tmp))
+
+        }
+      })
+    //val output = new CoordinateMatrix(entries)
+  }
+
   def computeMIMatrix(input:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int): BDM[Double] ={
     val output = BDM.zeros[Double](num_features,num_features)
-    //val rdd = sc.parallelize(Seq(output),5)
-    //val outputrow=new Rowmatrix(sc.parallelize(output.to,2))
+
     val indexKey: RDD[(Long, Array[Int])] =input.zipWithIndex().map{ x => (x._2,x._1)}
 
-    //val rdd :IndexedRowMatrix = _
-
-    /*for (i<-1 to num_features; j<-i to num_features){
-
-      val a: ParArray[Int] =indexKey.lookup(i).flatten.toParArray
-      val b: ParArray[Int] =indexKey.lookup(j).flatten.toParArray
-      output(i,j) = computeMutualInformation(a, b, num_state1, num_state2)
-
-    }
-    */
+    indexKey.cache()
 
     output.mapPairs { (coor, x) =>
       if (coor._1 >= coor._2) {
+
         val a: Array[Int] =indexKey.lookup(coor._1).flatten.toArray
         val b: Array[Int] =indexKey.lookup(coor._2).flatten.toArray
         //a.foreach(print)
@@ -137,12 +174,16 @@ class MutualInformation {
         //println("\\")
         output(coor._1,coor._2) = computeMutualInformation(a, b, num_state1, num_state2)
       }
+
     }
+
     output.mapPairs { (coor, x) =>
       if (coor._1 < coor._2) {
         output(coor._1,coor._2) = output(coor._2,coor._1)
       }
+
     }
+
     output
   }
 

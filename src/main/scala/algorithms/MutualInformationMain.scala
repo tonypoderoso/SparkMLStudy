@@ -1,19 +1,19 @@
 package algorithms
 
-import breeze.linalg.{DenseMatrix, Transpose, DenseVector => BDV}
-import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.{DenseVector, Vector}
+import breeze.linalg.{DenseMatrix, DenseVector => BDV}
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.mllib.linalg.DenseVector
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.scalatest.FunSuite
 
 /**
   * Created by tonypark on 2016. 4. 19..
   */
-class MutualInformationMain {
-  def main(args:Array[String]):Unit = {
-    val sc = new SparkContext("local","LeastSquaresRegressionTest")
-    val num_features = 4
+object MutualInformationMain {
+
+  def main(args:Array[String]): Unit = {
+    val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
+    val num_features = 2
     val num_samples = 100000
     val num_bins = 200
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
