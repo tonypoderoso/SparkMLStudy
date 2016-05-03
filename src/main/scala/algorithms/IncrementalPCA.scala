@@ -7,17 +7,37 @@ import org.apache.spark.rdd.RDD
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry, RowMatrix}
 
-import scala.collection.immutable.IndexedSeq
+import scala.Seq
+import scala.collection.{GenTraversableOnce, Seq}
+import scala.collection.immutable.{IndexedSeq, Seq}
 
 /**
   * Created by tonyp on 2016-04-27.
   */
 class IncrementalPCA {
 
+
+  def printArrayVector(arr : Array[Vector], str:String)={
+
+    println("*********************************************************")
+    println(str)
+    println("*********************************************************")
+
+    arr.foreach { x =>
+      println(x.toArray.toList)//.foreach(y => print(y.toString.substring(0, 4) + ","))
+      //println("")
+    }
+    println("*********************************************************")
+  }
+
   def ArrayVectorRowMatrixConcatenate(rm1:Array[Vector],rm2:RowMatrix): RDD[Vector] = {
     //if (rm1.length == rm2.numRows()){
     rm2.rows.zipWithIndex().map { x =>
-      Vectors.dense(BDV.vertcat(BDV(rm1(x._2.toInt).toArray),BDV(x._1.toArray)).toArray)
+      val tmp: BDV[Double] = BDV.vertcat(BDV(rm1(x._2.toInt).toArray),BDV(x._1.toArray))
+     // tmp.foreach(print)
+     // println("")
+      Vectors.dense(tmp.toArray.toSeq.toArray)
+
     }
   }
 
@@ -137,52 +157,83 @@ class IncrementalPCA {
     //bottom =zeros([size(data,2) length(D0)]) q'*data_res]
     //R = [top ; bottom ];
 
+
     val diag0: Array[Vector] = (0 until D0.length ).map{ row=>
        val tmp: BDV[Double] = BDV.zeros[Double](D0.length)
        tmp(row)=D0(row)
        Vectors.dense(tmp.toArray)
     }.toArray
 
-    val top: Array[Vector] = ArrayVectorRowMatrixConcatenate(diag0,data_prj).toArray
+    printArrayVector(diag0,"The diagonal Matrix")
 
-    println(" The size to top part is : " +top.length +" cols: "+ top.take(0).length)
+
+
+    println("The size of diag0 is ==> Row: "+ diag0.length + " Col : "+ diag0(0).toArray.length)
+    println("the size of data_prj is ==> Row: "+ data_prj.numRows + " Col : "+ data_prj.numCols)
+
+    val top: Array[Vector] = ArrayVectorRowMatrixConcatenate(diag0,RowMatrixTranspose(data_prj)).collect
+
+    printArrayVector(top, "The Top ArrayVector")
+
+    //println(" The size to top part is : " +top.length +" cols: "+ top(0).toArray.length)
+
+    //RowMatrixPrint(new RowMatrix(top.toList), "The Top Matrix")
+
 
     val bottomleft: Array[Vector] = (1 to data.first.toArray.length).map { i =>
       Vectors.dense( BDV.zeros[Double](D0.length).toArray)
     }.toArray
 
-
     val bottomright: RowMatrix = RowMatrixMultiply(data_res,result.Q)
 
     RowMatrixPrint(bottomright, " The bottom rigth part ")
 
-    val bottom: Array[Vector] = ArrayVectorRowMatrixConcatenate(bottomleft,bottomright).toArray
+    val bottom= ArrayVectorRowMatrixConcatenate(bottomleft,bottomright).collect
 
-    println(" The size to top part is : " +bottom.length +" cols: "+ bottom.take(0).length)
-    val R: Array[Vector] = Array(top,bottom).flatten
+    //println(" The size to top part is : " +bottom.length +" cols: "+ bottom(0).toArray.length)
 
-    println("The rowsize of top is : " + top.length + "and the bottom is : " + bottom.length + " and the rowsize of R is : "+R.length)
+    printArrayVector(bottom," The Bottom ArrayVector")
+
+    //RowMatrixPrint(new RowMatrix(bottom), "The Bottom Matrix")
+
+
+    val R: Array[Vector] =Array.concat(top,bottom).toSeq.toArray
+
+
+
+    printArrayVector(R," The Array R ")
+
+
+    //println("The rowsize of top is : " + top.length + "and the bottom is : " + bottom.length + " and the rowsize of R is : "+R.length)
 
     //    [U,D,V] = svd(R, 0);
     //   D = diag(D);
-    val RR: RowMatrix =new RowMatrix(sc.parallelize(R))
+    R.foreach{x => x.toArray.foreach(print)
+                   println("")}
+    val RR = new RowMatrix(sc.parallelize(R.toSeq))
 
-    RowMatrixPrint(RR, "THe R computed")
+    //RowMatrixPrint(RR, "THe R computed")
 
-    //val svd: SingularValueDecomposition[RowMatrix, Matrix] = RR.computeSVD(R.length, computeU = true)
+    val svd: SingularValueDecomposition[RowMatrix, Matrix] = RR.computeSVD(R.length, computeU = true)
 
 
 
-    //print(" THe diagonal entries are: " )
-    //svd.s.toArray.map(x=>x.toString+ ",")
-    //println(" ")
+    print(" THe diagonal entries are: " )
+    println(svd.s.toArray.map(x=>x.toString+ ",").reduce(_+_))
+    println(" ")
 
-    //println("The size of U matrix is : " + svd.U.numRows +", "+ svd.U.numCols)
-    ///RowMatrixPrint( svd.U , " The U Marix")
+
+    println("The size of U matrix is : " + svd.U.numRows +", "+ svd.U.numCols)
+    RowMatrixPrint( svd.U , " The U Marix")
     //RowMatrixPrint(new RowMatrix(sc.parallelize(svd.V))," The V matrix")
 
 
 
+
+
+    val U: RowMatrix = RowMatrixMultiply(new RowMatrix(Q), svd.U)
+
+    RowMatrixPrint( svd.U , " The final U Marix")
 
 
     //diagonal matrix

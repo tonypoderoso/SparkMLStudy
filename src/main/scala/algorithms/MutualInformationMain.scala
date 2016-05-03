@@ -12,8 +12,8 @@ import org.apache.spark.rdd.RDD
 object MutualInformationMain {
 
   def main(args:Array[String]): Unit = {
-    val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
-    val num_features = 2
+    val sc = new SparkContext(new SparkConf().setAppName("Test"))
+    val num_features = 500
     val num_samples = 100000
     val num_bins = 200
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)

@@ -40,7 +40,7 @@ class MutualInformation {
     // Split the matrix into one number per line.
     val byColumnAndRow = rdd.zipWithIndex.flatMap{
       case (row: Vector, rowIndex: Long) => row.toArray.zipWithIndex.map {
-        case (number: Double, columnIndex: Int) => {columnIndex.->(rowIndex, number)}
+        case (number: Double, columnIndex: Int) => {columnIndex ->(rowIndex, number)}
       }
     }
     // Build up the transposed matrix. Group and sort by column index first.
