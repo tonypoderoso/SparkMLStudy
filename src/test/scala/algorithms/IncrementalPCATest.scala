@@ -31,8 +31,12 @@ class IncrementalPCATest extends FunSuite {
     val stmp: RDD[Array[String]] = csv2.map(line => line.split(','))
     val s: Array[Double] = stmp.map(x => x.map(i=>i.toDouble)).collect.flatten
 
+    val csv3: RDD[String] = sc.textFile("/Users/tonypark/ideaProjects/SparkMLStudy/src/test/resources/mu0.csv")
+    val mu0tmp: RDD[Array[String]] = csv3.map(line => line.split(','))
+    val mu0: Array[Double] = mu0tmp.map(x => x.map(i=>i.toDouble)).collect.flatten
+
     val mi = new IncrementalPCA
-    mi.fit(data,u,s)
+    mi.fit(data,u,s,mu0,Array(190.0),1.0)
     sc.stop()
   }
 }
