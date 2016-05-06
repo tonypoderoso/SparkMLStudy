@@ -12,10 +12,22 @@ import org.apache.spark.rdd.RDD
 object MutualInformationMain {
 
   def main(args:Array[String]): Unit = {
-    val sc = new SparkContext(new SparkConf().setAppName("Test"))
-    val num_features = 500
-    val num_samples = 100000
-    val num_bins = 200
+
+
+    //val sc = new SparkContext(new SparkConf())
+    val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test").set("spark.driver.memory","15G"))
+
+    var num_features:Int =100
+    var num_samples:Int =100000
+    var num_bins:Int = 200
+
+    if (!args.isEmpty){
+
+     num_features = args(0).toString.toInt
+     num_samples = args(1).toString.toInt
+     num_bins = args(2).toString.toInt
+
+  }
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
 
 
@@ -41,22 +53,24 @@ object MutualInformationMain {
 
     // val mut =mi.computeMutualInformation(dvec.first(),dvec.first,5,5)
 
-    val MIMAT: DenseMatrix[Double] =mi.computeMIMatrix(dvec,num_features,num_bins,num_bins)
+    val MIRDD =mi.computeMIMatrixRDD(dvec,num_features,num_bins,num_bins)
 
-    MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
-    println(MIMAT.rows)
-    println(MIMAT.cols)
-    println("///////////////////////////////////////////")
+    MIRDD.foreach{x=>println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
 
-    val mrMR=new MaxRelevanceOverMinRedundancyFeatureSelection
-    val H: DenseMatrix[Double] =MIMAT(0 until MIMAT.rows-1,0 until MIMAT.cols-1)
-    val f: BDV[Double] = MIMAT(MIMAT.rows-1,0 until MIMAT.cols-1).t
-    println("The H is a maxrix of size " +H.rows +" rows and  " + H.cols +" columns")
-    println("The f vector is of length"+ f.length)
+    //MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
+    //println(MIMAT.rows)
+    //println(MIMAT.cols)
+    //println("///////////////////////////////////////////")
 
-    val mrMRFS = mrMR.evaluate( H,f, num_features-1)
-    println("the result is: ")
-    mrMRFS.foreach(println)
+    //val mrMR=new MaxRelevanceOverMinRedundancyFeatureSelection
+    //val H: DenseMatrix[Double] =MIMAT(0 until MIMAT.rows-1,0 until MIMAT.cols-1)
+    //val f: BDV[Double] = MIMAT(MIMAT.rows-1,0 until MIMAT.cols-1).t
+    //println("The H is a maxrix of size " +H.rows +" rows and  " + H.cols +" columns")
+    //println("The f vector is of length"+ f.length)
+
+    //val mrMRFS = mrMR.evaluate( H,f, num_features-1)
+    //println("the result is: ")
+    //mrMRFS.foreach(println)
 
   }
 }

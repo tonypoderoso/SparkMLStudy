@@ -151,6 +151,34 @@ class IncrementalPCA {
     var data:RDD[Vector] = null
 
     if (U0 == null) {
+      val mu: Array[Double] = datain_collect.map { x => x.toArray.reduce(_ + _) / n }
+      data = sc.parallelize(datain_collect.zipWithIndex.map { x =>
+        val ttt: Array[Double] = x._1.toArray.map(i => i - mu(x._2))
+        Vectors.dense(ttt.toArray)
+      })
+      val data_row = new RowMatrix(data)
+      val svd: SingularValueDecomposition[RowMatrix, Matrix] =
+        data_row.computeSVD(data_row.numCols.toInt, computeU = true)
+
+      print(" THe diagonal entries are: ")
+      // println(svd.s.toArray.map(x => x.toString + ",").reduce(_ + _))
+      println(" ")
+
+
+      println("The size of U matrix is : " + svd.U.numRows + ", " + svd.U.numCols)
+      //RowMatrixPrint(svd.U, " The U Marix")
+      //RowMatrixPrint(new RowMatrix(sc.parallelize(svd.V))," The V matrix")
+
+      //val Keep = 16
+
+      //val U: RowMatrix = takeColsFrom0To(RowMatrixMultiply(new RowMatrix(Q), svd.U), Keep)
+
+      //RowMatrixPrint(RowMatrixTranspose(U), " The final U Marix")
+
+      val D: Array[Double] = svd.s.toArray
+
+      (svd.U, D)
+
 
     } else {
       if (n0(0) == -1.0) {
@@ -158,28 +186,28 @@ class IncrementalPCA {
         println("inside n0")
       }
       if (D0 != null && mu0 != null) {
-          println("data transformation")
-          val mu1: Array[Double] = datain_collect.map { x => x.toArray.reduce(_ + _) / n }
-          println(" The mu1 vector : " + mu1.map { i => i.toString + "," }.reduce(_ + _))
-          val cnt = sqrt(n * n0(0) / (n + n0(0)))
-          val mu_new: Array[Double] = mu0.zipWithIndex.map { i => cnt * (i._1 - mu1(i._2)) }
-          data = sc.parallelize(datain_collect.zipWithIndex.map { x =>
-            val ttt: Array[Double] = x._1.toArray.map(i => i - mu1(x._2))
-            val tttt: BDV[Double] = BDV.vertcat(BDV(ttt), BDV(mu_new(x._2)))
-            Vectors.dense(tttt.toArray)
-          })
+        println("data transformation")
+        val mu1: Array[Double] = datain_collect.map { x => x.toArray.reduce(_ + _) / n }
+        println(" The mu1 vector : " + mu1.map { i => i.toString + "," }.reduce(_ + _))
+        val cnt = sqrt(n * n0(0) / (n + n0(0)))
+        val mu_new: Array[Double] = mu0.zipWithIndex.map { i => cnt * (i._1 - mu1(i._2)) }
+        data = sc.parallelize(datain_collect.zipWithIndex.map { x =>
+          val ttt: Array[Double] = x._1.toArray.map(i => i - mu1(x._2))
+          val tttt: BDV[Double] = BDV.vertcat(BDV(ttt), BDV(mu_new(x._2)))
+          Vectors.dense(tttt.toArray)
+        })
 
-          val a1: BDV[Double] = n0(0) * ff * BDV(mu0)
-          val a2: BDV[Double] = n * BDV(mu1)
-          n = n + ff * n0(0)
-          val mu: BDV[Double] = (a1 + a2) / n
-          println(" The mu vector : " + mu.map { i => i.toString + "," }.reduce(_ + _))
+        val a1: BDV[Double] = n0(0) * ff * BDV(mu0)
+        val a2: BDV[Double] = n * BDV(mu1)
+        n = n + ff * n0(0)
+        val mu: BDV[Double] = (a1 + a2) / n
+        println(" The mu vector : " + mu.map { i => i.toString + "," }.reduce(_ + _))
 
       }
-    }
 
-    val data_collect = data.collect()
-    printArrayVector(data_collect, "The modified data")
+
+      val data_collect = data.collect()
+      printArrayVector(data_collect, "The modified data")
       //RowMatrixPrint(RowMatrixTranspose(new RowMatrix(data)), "The input data")
       //RowMatrixPrint(RowMatrixTranspose(new RowMatrix(U0)), " The U0 Matrix")
 
@@ -226,7 +254,7 @@ class IncrementalPCA {
       println("data_res : row:" + data_res.numRows + " col: " + data_res.numCols)
       println("data : row:" + data_collect.length + " col: " + data_collect(0).toArray.length)
 
-     // RowMatrixPrint(data_res, " The data result")
+      // RowMatrixPrint(data_res, " The data result")
 
       val data_res_t = RowMatrixTranspose(data_res)
       //RowMatrixPrint(data_res_t, "Computing data result transposed")
@@ -256,7 +284,6 @@ class IncrementalPCA {
       }.toArray
 
       //printArrayVector(diag0, "The diagonal Matrix")
-
 
 
       println("The size of diag0 is ==> Row: " + diag0.length + " Col : " + diag0(0).toArray.length)
@@ -308,7 +335,7 @@ class IncrementalPCA {
       val svd: SingularValueDecomposition[RowMatrix, Matrix] = RR.computeSVD(R.length, computeU = true)
 
       print(" THe diagonal entries are: ")
-     // println(svd.s.toArray.map(x => x.toString + ",").reduce(_ + _))
+      // println(svd.s.toArray.map(x => x.toString + ",").reduce(_ + _))
       println(" ")
 
 
@@ -320,7 +347,7 @@ class IncrementalPCA {
 
       val U: RowMatrix = takeColsFrom0To(RowMatrixMultiply(new RowMatrix(Q), svd.U), Keep)
 
-      RowMatrixPrint(U, " The final U Marix")
+      RowMatrixPrint(RowMatrixTranspose(U), " The final U Marix")
 
       val D: Array[Double] = svd.s.toArray.take(Keep)
 
@@ -343,8 +370,8 @@ class IncrementalPCA {
       //    data
 
 
-    //val res = data - U0.t*data_proj.t
-
+      //val res = data - U0.t*data_proj.t
+    }
 
   }
 

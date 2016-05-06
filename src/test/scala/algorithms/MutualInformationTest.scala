@@ -19,9 +19,9 @@ class MutualInformationTest extends FunSuite{
       .set("spark.driver.memory","15G")
 
     val sc = new SparkContext(sconf)
-    val num_features = 5
-    val num_samples = 100
-    val num_bins = 5
+    val num_features = 100
+    val num_samples = 10000
+    val num_bins = 200
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
 
 
