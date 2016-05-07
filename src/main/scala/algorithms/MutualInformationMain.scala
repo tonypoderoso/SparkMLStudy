@@ -14,8 +14,8 @@ object MutualInformationMain {
   def main(args:Array[String]): Unit = {
 
 
-    //val sc = new SparkContext(new SparkConf())
-    val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test").set("spark.driver.memory","15G"))
+    val sc = new SparkContext(new SparkConf().set("spark.driver.maxResultSize", "4g"))
+    //val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test").set("spark.driver.memory","15G"))
 
     var num_features:Int =100
     var num_samples:Int =100000
@@ -46,16 +46,16 @@ object MutualInformationMain {
 
     val dvec: RDD[Array[Int]] = mi.discretizeVector(trans,num_bins)
 
-    dvec.take(5).map{x=>
-      x.foreach(print)
-      println(" \\\\\\")
-    }
+    //dvec.take(5).map{x=>
+    //  x.foreach(print)
+    //  println(" \\\\\\")
+    //}
 
     // val mut =mi.computeMutualInformation(dvec.first(),dvec.first,5,5)
 
     val MIRDD =mi.computeMIMatrixRDD(dvec,num_features,num_bins,num_bins)
 
-    MIRDD.foreach{x=>println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
+    //MIRDD.foreach{x=>println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
 
     //MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
     //println(MIMAT.rows)

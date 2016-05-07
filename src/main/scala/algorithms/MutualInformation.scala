@@ -109,8 +109,34 @@ class MutualInformation {
 
    }
 
-
   def computeMIMatrixRDD(input:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int)
+  : RDD[MatrixEntry] = {
+
+    val sc = input.sparkContext
+
+    val in: Array[Array[Int]] =input.collect()
+    //val indexKey: RDD[(Long, Array[Int])] = input.zipWithIndex().map { x => (x._2, x._1) }
+
+    //indexKey.cache()
+
+    sc.parallelize(
+      (0 until num_features).flatMap{ row =>
+        (row until num_features).flatMap { col =>
+          //println("Computhing " +row.toString+ "-th row  and "+ col.toString + "-th column")
+          val a: Array[Int] = in(row) //indexKey.lookup(row).flatten.toArray
+          val b: Array[Int] = in(col) //indexKey.lookup(col).flatten.toArray
+          val tmp: Double =  computeMutualInformation(a, b, num_state1, num_state2)
+          if (row == col)
+            Seq(MatrixEntry(row, col, tmp))
+          else
+            Seq(MatrixEntry(row, col, tmp), MatrixEntry(col, row, tmp))
+
+        }
+      })
+    //val output = new CoordinateMatrix(entries)
+  }
+
+  /*def computeMIMatrixRDD(input:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int)
   : RDD[MatrixEntry] = {
 
     val sc = input.sparkContext
@@ -135,17 +161,17 @@ class MutualInformation {
     sc.parallelize(
       (0 until num_features).flatMap{ row =>
         (row until num_features).flatMap { col =>
-          println("Computhing " +row.toString+ "-th row  and "+ col.toString + "-th column")
+          //println("Computhing " +row.toString+ "-th row  and "+ col.toString + "-th column")
           val a: Array[Int] = indexKey.lookup(row).flatten.toArray
           val b: Array[Int] = indexKey.lookup(col).flatten.toArray
-          val tmp = computeMutualInformation(a, b, num_state1, num_state2)
-          print(" First Array : ")
-          a.map(i=>i.toString + " , ").foreach(print)
-          println("")
-          print(" Second Array : ")
-          b.map(i=>i.toString + " , ").foreach(print)
-          println("")
-          println(" The Mutual Information value :" + tmp)
+          val tmp: Double =  computeMutualInformation(a, b, num_state1, num_state2)
+          //print(" First Array : ")
+          //a.map(i=>i.toString + " , ").foreach(print)
+          //println("")
+          //print(" Second Array : ")
+          //b.map(i=>i.toString + " , ").foreach(print)
+          //println("")
+          //println(" The Mutual Information value :" + tmp)
           if (row == col)
             Seq(MatrixEntry(row, col, tmp))
           else
@@ -154,7 +180,7 @@ class MutualInformation {
         }
       })
     //val output = new CoordinateMatrix(entries)
-  }
+  }*/
 
   def computeMIMatrix(input:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int): BDM[Double] ={
     val output = BDM.zeros[Double](num_features,num_features)
