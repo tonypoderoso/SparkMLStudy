@@ -19,19 +19,21 @@ class IncrementalPCATest extends FunSuite {
 
     val sc = new SparkContext(sconf)
 
-    val csv: RDD[String] = sc.textFile("/Users/tonypark/ideaProjects/SparkMLStudy/src/test/resources/data.csv")
+    val homedir= "/home/tony/IdeaProjects/mltest01/"
+    // val homedir =""/Users/tonypark/ideaProjects/"
+    val csv: RDD[String] = sc.textFile(homedir + "SparkMLStudy/src/test/resources/data.csv")
     val datatmp: RDD[Array[String]] = csv.map(line => line.split(','))
     val data: RDD[Vector] = datatmp.map(x => Vectors.dense(x.map(i=>i.toDouble)))
 
-    val csv1: RDD[String] = sc.textFile("/Users/tonypark/ideaProjects/SparkMLStudy/src/test/resources/U.csv")
+    val csv1: RDD[String] = sc.textFile(homedir+"SparkMLStudy/src/test/resources/U.csv")
     val utmp: RDD[Array[String]] = csv1.map(line => line.split(','))
     val u: RDD[Vector] = utmp.map(x => Vectors.dense(x.map(i=>i.toDouble)))
 
-    val csv2: RDD[String] = sc.textFile("/Users/tonypark/ideaProjects/SparkMLStudy/src/test/resources/S.csv")
+    val csv2: RDD[String] = sc.textFile(homedir + "SparkMLStudy/src/test/resources/S.csv")
     val stmp: RDD[Array[String]] = csv2.map(line => line.split(','))
     val s: Array[Double] = stmp.map(x => x.map(i=>i.toDouble)).collect.flatten
 
-    val csv3: RDD[String] = sc.textFile("/Users/tonypark/ideaProjects/SparkMLStudy/src/test/resources/mu0.csv")
+    val csv3: RDD[String] = sc.textFile(homedir+ "SparkMLStudy/src/test/resources/mu0.csv")
     val mu0tmp: RDD[Array[String]] = csv3.map(line => line.split(','))
     val mu0: Array[Double] = mu0tmp.map(x => x.map(i=>i.toDouble)).collect.flatten
 
