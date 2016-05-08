@@ -1,11 +1,11 @@
 package algorithms
 
 import breeze.linalg.{DenseMatrix, Transpose, DenseVector => BDV}
-import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry}
+import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry, RowMatrix}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
 import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd._
 import org.scalatest.FunSuite
 
 /**
@@ -19,8 +19,8 @@ class MutualInformationTest extends FunSuite{
       .set("spark.driver.memory","15G")
 
     val sc = new SparkContext(sconf)
-    val num_features = 10
-    val num_samples = 10000
+    val num_features = 2
+    val num_samples = 100000
     val num_bins = 200
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
 
@@ -36,9 +36,10 @@ class MutualInformationTest extends FunSuite{
 
     val unitdata: RDD[DenseVector]= mi.normalizeToUnit(lds,1)
 
-    val trans: RDD[DenseVector] = mi.rddTranspose(unitdata)
 
-    val dvec: RDD[Array[Int]] = mi.discretizeVector(trans,num_bins)
+    val trans: RDD[Vector] = mi.rddTranspose1(unitdata)
+
+    val dvec: RDD[Array[Int]] = mi.discretizeVector1(trans,num_bins)
 
     dvec.take(5).map{x=>
       x.foreach(print)
@@ -49,9 +50,10 @@ class MutualInformationTest extends FunSuite{
 
 
 
-    val MIRDD =mi.computeMIMatrixRDD(dvec,num_features,num_bins,num_bins)
+    val MIRDD: RDD[MatrixEntry] =mi.computeMIMatrixRDD1(dvec,num_features,num_bins,num_bins)
 
-    MIRDD.foreach{x=>println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
+    println("The number of elementes :" + MIRDD.count())
+    MIRDD.foreach {x => println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
 
 
 
