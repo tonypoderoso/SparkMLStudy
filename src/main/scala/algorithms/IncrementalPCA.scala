@@ -1,15 +1,14 @@
 package algorithms
 
-import breeze.linalg._
+import breeze.linalg.{ DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
-import org.apache.spark.mllib.linalg.{Matrix, Vector,Vectors,Matrices,_}
+import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vector, Vectors, _}
 import org.apache.spark.rdd.RDD
-import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry, RowMatrix}
 
 
 /**
-  * Created by tonyp on 2016-04-27.
+  * Created by tonyp on 2016-05-04.
   */
 class IncrementalPCA {
 
@@ -144,16 +143,19 @@ class IncrementalPCA {
 
   def fit(data_in: RDD[Vector], U0: RDD[Vector] = null, D0: Array[Double] = null,
           mu0: Array[Double] = null, n0 : Array[Double] = Array(-1.0),
-          ff: Double= 1.0, K: Array[Int] = Array(-1)): (RowMatrix, Array[Double]) = {
+          ff: Double= 1.0, K: Array[Int] = Array(-1)):
+  (RDD[Vector], Array[Double], Array[Double], Double) = {
 
-    val sc = data_in.sparkContext;
+    val sc = data_in.sparkContext
     val datain_collect: Array[Vector] = data_in.collect()
     val N = datain_collect.length.toDouble
     var n = datain_collect(0).toArray.length.toDouble
     var data:RDD[Vector] = null
+    var keep = 0
+    //var mu:Array[Double]=null
 
     if (U0 == null) {
-      val mu: Array[Double] = datain_collect.map { x => x.toArray.reduce(_ + _) / n }
+      val mu: Array[Double] = datain_collect.map { x => sum(x.toArray) / n }
       data = sc.parallelize(datain_collect.zipWithIndex.map { x =>
         val ttt: Array[Double] = x._1.toArray.map(i => i - mu(x._2))
         Vectors.dense(ttt.toArray)
@@ -163,11 +165,29 @@ class IncrementalPCA {
         data_row.computeSVD(data_row.numCols.toInt, computeU = true)
 
       val D: Array[Double] = svd.s.toArray
-      (svd.U, D)
+      var res=(svd.U.rows, D,mu,n)
+
+
+      /* nargin >= 7
+      keep = 1:min(K,length(D));
+      D = D(keep);
+      U = U(:,keep);
+      end*/
+
+      if (K(0) != -1){
+        keep = min(K(0), D.length)
+        val U: RowMatrix = takeColsFrom0To(svd.U, keep)
+        val DD: Array[Double] = svd.s.toArray.take(keep)
+        res = (U.rows,DD,mu,n)
+      }
+
+      res
 
     }
     else {
 
+
+      var mu:Array[Double]=Array(-1)
       if (n0(0) == -1.0) {
         n0(0) = n
       }
@@ -184,7 +204,7 @@ class IncrementalPCA {
         val a1: BDV[Double] = n0(0) * ff * BDV(mu0)
         val a2: BDV[Double] = n * BDV(mu1)
         n = n + ff * n0(0)
-        val mu: BDV[Double] = (a1 + a2) / n
+        mu = ((a1 + a2) / n).toArray
       }
 
 
@@ -193,7 +213,7 @@ class IncrementalPCA {
       val uodata_proj: RowMatrix = RowMatrixMultiply(new RowMatrix(U0), data_prj)
 
       //data_res = data - data_prj;
-      var i = -1;
+      var i = -1
       val data_res_rdd: Array[Vector] = uodata_proj.rows.collect.map { x =>
         i = i + 1
         Vectors.dense(data_collect(i).toArray - x.toArray)
@@ -234,13 +254,29 @@ class IncrementalPCA {
       val RR = new RowMatrix(sc.parallelize(R))
       val svd: SingularValueDecomposition[RowMatrix, Matrix] = RR.computeSVD(R.length, computeU = true)
 
+      /* if nargin < 7
+      cutoff = sum(D.^2) * 1e-6;
+      keep = find(D.^2 >= cutoff);
+      else
+      keep = 1:min([K,length(D),n]);
+      end */
+      //var keep = 0
+      val DD = BDV(svd.s.toArray)
+      if (K(0) == -1){
+        val cutoff: Double = sum(DD :* DD) * 1e-6
+        val sumsq: BDV[Int] = DD.map(i =>
+          if (i*i >= cutoff) 1 else 0)
+        keep = sum(sumsq)
+      }else
+        {
+          keep = min(K(0),DD.length,n.toInt)
+        }
+      //val Keep = 16
 
-      val Keep = 16
+      val U: RowMatrix = takeColsFrom0To(RowMatrixMultiply(new RowMatrix(Q), svd.U), keep)
+      val D: Array[Double] = svd.s.toArray.take(keep)
 
-      val U: RowMatrix = takeColsFrom0To(RowMatrixMultiply(new RowMatrix(Q), svd.U), Keep)
-      val D: Array[Double] = svd.s.toArray.take(Keep)
-
-      (U, D)
+      (U.rows, D,mu,n)
 
 
     }

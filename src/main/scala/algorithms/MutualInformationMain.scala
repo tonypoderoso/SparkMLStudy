@@ -14,7 +14,9 @@ object MutualInformationMain {
   def main(args:Array[String]): Unit = {
 
 
-    val sc = new SparkContext(new SparkConf().set("spark.driver.maxResultSize", "4g"))
+    val sc = new SparkContext(new SparkConf()
+      .set("spark.driver.maxResultSize", "4g")
+      .set("spark.akka.frameSize", "512"))
     //val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
 
     var num_features:Int =100

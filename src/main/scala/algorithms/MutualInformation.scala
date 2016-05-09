@@ -13,7 +13,7 @@ import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, IndexedRowMa
 import scala.collection.immutable.IndexedSeq
 
 /**
-  * Created by tonypark on 2016. 4. 19..
+  * Created by tonypark on 2016. 5. 4..
   */
 class MutualInformation {
 
@@ -154,6 +154,7 @@ class MutualInformation {
   def computeMIMatrixRDD1(in:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int): RDD[MatrixEntry] = {
 
     val sc = in.sparkContext
+
     val computeMutualInformation1= ( input: ((Array[Int], Long),(Array[Int],Long))) =>{
 
       val row = input._1._2
