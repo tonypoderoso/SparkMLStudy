@@ -196,8 +196,8 @@ class MutualInformation {
     }
 
     val a=in.zipWithIndex()
-    val b=in.zipWithIndex()
-    a.cartesian(b).map(computeMutualInformation1)
+    //val b=in.zipWithIndex()
+    a.cartesian(a).map(computeMutualInformation1)
 
   }
 
