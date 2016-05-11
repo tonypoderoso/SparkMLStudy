@@ -15,6 +15,8 @@ object MutualInformationMain {
 
 
     val sc = new SparkContext(new SparkConf()
+      //.setMaster("local[*]")
+      .setAppName("MutualINformationMain")
       .set("spark.driver.cores","8")
       .set("spark.driver.maxResultSize", "4g")
       .set("spark.akka.frameSize", "512"))
@@ -35,21 +37,36 @@ object MutualInformationMain {
   }
     val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
 
+    //println("1.dataset: "+dataset.labeledPointsSc.getNumPartitions)
 
-    val lds: RDD[LabeledPoint] = sc.parallelize(dataset.labeledPoints).repartition(num_new_partitions)
+    val lds: RDD[LabeledPoint] = sc.parallelize(dataset.labeledPoints,num_new_partitions)
 
     val mi = new MutualInformation
 
-    val unitdata: RDD[DenseVector]= mi.normalizeToUnit(lds,1)
+    //val unitdata: RDD[DenseVector]= mi.normalizeToUnit(lds,1)
 
-    val trans: RDD[Vector] = mi.rddTranspose1(unitdata)
+    //val trans: RDD[Vector] = mi.rddTranspose1(unitdata)
 
-    val dvec: RDD[Array[Int]] = mi.discretizeVector1(trans,num_bins).repartition(num_new_partitions)
+    //val trans = mi.normalizeToUnitwithTranspose(lds,1)
 
-    System.out.println(dvec.getNumPartitions);
+    val ffd = mi.featureFromDataset(lds,1)
+    println("2.ffd : " +ffd.getNumPartitions)
+
+    val ffdt = mi.rddTranspose2(ffd)
+    println("3.ffdt: "+ffdt.getNumPartitions)
+
+    val trans = mi.normalizeToUnitT(ffdt)
+
+    println("4. trans: "+trans.getNumPartitions)
+
+    val dvec: RDD[Array[Int]] = mi.discretizeVector1(trans,num_bins)//.repartition(num_new_partitions)
+
+    println("5. dvec : "+dvec.getNumPartitions)
 
 
     val MIRDD =mi.computeMIMatrixRDD1(dvec,num_features,num_bins,num_bins)
+
+    println("6. MIRDD : " + MIRDD.getNumPartitions)
 
     //MIRDD.foreach{x=>println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
 

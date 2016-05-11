@@ -8,7 +8,7 @@ import org.apache.spark.mllib.linalg.distributed.RowMatrix
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
 import org.scalatest.FunSuite
 import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd._
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
 

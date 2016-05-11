@@ -45,10 +45,7 @@ class MutualInformation {
     val FinalMax: BDV[Double] = max(abs(Max), abs(Min))
 
     features.map((v: Vector) => new DenseVector((BDV(v.toArray) :/ FinalMax).toArray))
-
-
   }
-
 
   def rddTranspose1(rdd: RDD[DenseVector]): RDD[Vector] = {
     // Split the matrix into one number per line.
@@ -61,7 +58,58 @@ class MutualInformation {
     new CoordinateMatrix(mentry).toRowMatrix().rows
   }
 
-  def rddTranspose(rdd: RDD[DenseVector]): RDD[DenseVector] = {
+  def rddTranspose2(rdd: RDD[Vector]): RDD[Vector] = {
+    // Split the matrix into one number per line.
+    val sc = rdd.sparkContext
+    val mentry: RDD[MatrixEntry] = rdd.zipWithIndex.flatMap{
+      case (row: Vector, rowIndex: Long) => row.toArray.zipWithIndex.map {
+        case (number: Double, columnIndex: Int) => MatrixEntry(columnIndex ,rowIndex, number)
+      }
+    }
+    new CoordinateMatrix(mentry).toRowMatrix().rows
+  }
+
+  def featureFromDataset(inputs: RDD[LabeledPoint], normConst: Double): RDD[Vector] ={
+    inputs.map { v =>
+      val x: BDV[Double] = new BDV(v.features.toArray)
+      val y: BDV[Double] = new BDV(Array(v.label))
+      Vectors.dense(BDV.vertcat(x, y).toArray)
+    }
+  }
+
+  def normalizeToUnitwithTranspose(inputs: RDD[LabeledPoint], normConst: Double): RDD[Vector] = {
+
+    //val features: RDD[Vector] = inputs.map(_.features)
+    val features: RDD[Vector] = inputs.map { v =>
+      val x: BDV[Double] = new BDV(v.features.toArray)
+      val y: BDV[Double] = new BDV(Array(v.label))
+      Vectors.dense(BDV.vertcat(x, y).toArray)
+    }
+    val features1: RDD[Vector] = rddTranspose2(features)
+    val normalized = (vec:Vector)  => {
+      val Max: Double = max(vec.toArray)
+      val Min: Double =  min(vec.toArray)
+      val FinalMax: Double = max(abs(Max), abs(Min))
+      Vectors.dense( (BDV(vec.toArray) :/ BDV.fill(vec.toArray.length){FinalMax}).toArray)
+    }
+    features1.map(normalized)
+  }
+
+  def normalizeToUnitT(inputs: RDD[Vector]): RDD[Vector] = {
+
+    val normalized = (vec:Vector)  => {
+      val Max: Double = max(vec.toArray)
+      val Min: Double =  min(vec.toArray)
+      val FinalMax: Double = max(abs(Max), abs(Min))
+      Vectors.dense( (BDV(vec.toArray) :/ BDV.fill(vec.toArray.length){FinalMax}).toArray)
+    }
+    inputs.map(normalized)
+  }
+
+
+
+
+  def rddTranspose(rdd: RDD[Vector]): RDD[Vector] = {
     // Split the matrix into one number per line.
     val byColumnAndRow: RDD[(Int, (Long, Double))] = rdd.zipWithIndex.flatMap{
       case (row: Vector, rowIndex: Long) => row.toArray.zipWithIndex.map {
@@ -72,7 +120,7 @@ class MutualInformation {
     val byColumn: RDD[Iterable[(Long, Double)]] = byColumnAndRow.groupByKey.sortByKey().values
     // Then sort by row index.
     byColumn.map {
-      indexedRow => new DenseVector(indexedRow.toArray.sortBy(_._1).map(_._2))
+      indexedRow => Vectors.dense(indexedRow.toArray.sortBy(_._1).map(_._2))
     }
   }
 
