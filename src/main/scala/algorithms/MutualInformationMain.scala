@@ -1,8 +1,10 @@
 package algorithms
 
 //import breeze.linalg.{DenseMatrix, DenseVector => BDV}
+import breeze.linalg.{DenseVector=>BDV}
+import breeze.stats.distributions.Gaussian
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.mllib.linalg.{DenseVector,Vector}
+import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 
@@ -13,13 +15,13 @@ object MutualInformationMain {
 
   def main(args:Array[String]): Unit = {
 
-
     val sc = new SparkContext(new SparkConf()
       //.setMaster("local[*]")
       .setAppName("MutualINformationMain")
-      .set("spark.driver.cores","8")
       .set("spark.driver.maxResultSize", "4g")
-      .set("spark.akka.frameSize", "512"))
+      .set("spark.akka.frameSize", "1024")
+      .set("spark.akka.heartbeat.interval","4000s")
+      .set("spark.akka.heartbeat.pauses","2000s"))
     //val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
 
     var num_features:Int =100
@@ -35,19 +37,44 @@ object MutualInformationMain {
      num_new_partitions = args(3).toString.toInt
 
   }
-    val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
 
-    //println("1.dataset: "+dataset.labeledPointsSc.getNumPartitions)
 
-    val lds: RDD[LabeledPoint] = sc.parallelize(dataset.labeledPoints,num_new_partitions)
+    // Single processing
+    //************************************************
+    //val dataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
+    //val lds: RDD[LabeledPoint] = sc.parallelize(dataset.labeledPoints,num_new_partitions)
 
-    val mi = new MutualInformation
+
 
     //val unitdata: RDD[DenseVector]= mi.normalizeToUnit(lds,1)
 
     //val trans: RDD[Vector] = mi.rddTranspose1(unitdata)
 
     //val trans = mi.normalizeToUnitwithTranspose(lds,1)
+
+
+    // Distributed processing
+    //************************************************
+    val recordsPerPartition: Int = num_samples/num_new_partitions
+
+
+    val noise = 0.1
+    val gauss = new Gaussian(0.0,1.0)
+    val weights: Array[Double] = gauss.sample(num_features).toArray
+    val w = BDV(weights)
+
+    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](),num_new_partitions)
+      .mapPartitions { _ => {
+        val gauss=new Gaussian(0.0,1.0)
+        (1 to recordsPerPartition).map { _ =>
+          val x = BDV(gauss.sample(num_features).toArray)
+          val l = x.dot(w) + gauss.sample() * noise
+          new LabeledPoint(l, Vectors.dense(x.toArray))
+        }
+      }.toIterator
+      }
+
+    val mi = new MutualInformation
 
     val ffd = mi.featureFromDataset(lds,1)
     println("2.ffd : " +ffd.getNumPartitions)
@@ -57,7 +84,7 @@ object MutualInformationMain {
 
     val trans = mi.normalizeToUnitT(ffdt)
 
-    println("4. trans: "+trans.getNumPartitions)
+    println("4. trans: "+  trans.getNumPartitions)
 
     val dvec: RDD[Array[Int]] = mi.discretizeVector1(trans,num_bins)//.repartition(num_new_partitions)
 

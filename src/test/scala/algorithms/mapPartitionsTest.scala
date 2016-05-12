@@ -1,4 +1,4 @@
-package algorithms.RDD
+package algorithms
 
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.FunSuite
