@@ -107,6 +107,23 @@ class MutualInformation {
   }
 
 
+  def rddTransposeWithPartition(rdd: RDD[Vector]): RDD[Vector] = {
+    // Split the matrix into one number per line.
+    val byColumnAndRow: RDD[(Int, (Long, Double))] = rdd.zipWithIndex.flatMap {
+      case (row: Vector, rowIndex: Long) => row.toArray.zipWithIndex.map {
+        case (number: Double, columnIndex: Int) => {
+          columnIndex ->(rowIndex, number)
+        }
+      }
+    }.cache()
+    // Build up the transposed matrix. Group and sort by column index first.
+    val byColumn: RDD[Iterable[(Long, Double)]] = byColumnAndRow.groupByKey().sortByKey().values
+    // Then sort by row index.
+    byColumn.map {
+      indexedRow => Vectors.dense(indexedRow.toArray.sortBy(_._1).map(_._2))
+    }
+  }
+
 
 
   def rddTranspose(rdd: RDD[Vector]): RDD[Vector] = {
@@ -199,9 +216,9 @@ class MutualInformation {
   }
 
 
-  def computeMIMatrixRDD1(in:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int): RDD[MatrixEntry] = {
+  def computeMIMatrixRDD1(in:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int,num_new_partitions:Int) ={
 
-    val sc = in.sparkContext
+    //val sc = in.sparkContext
 
     val computeMutualInformation1= ( input: ((Array[Int], Long),(Array[Int],Long))) =>{
 
@@ -245,7 +262,9 @@ class MutualInformation {
 
     val a=in.zipWithIndex()
     //val b=in.zipWithIndex()
-    a.cartesian(a).map(computeMutualInformation1)
+    a.cartesian(a).repartition(num_new_partitions).map(computeMutualInformation1)
+
+    //a.union(a).repartition(computeMutualInformation1)
 
   }
 

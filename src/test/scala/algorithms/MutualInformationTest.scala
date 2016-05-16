@@ -50,7 +50,7 @@ class MutualInformationTest extends FunSuite{
 
 
 
-    val MIRDD: RDD[MatrixEntry] =mi.computeMIMatrixRDD1(dvec,num_features,num_bins,num_bins)
+    val MIRDD: RDD[MatrixEntry] =mi.computeMIMatrixRDD(dvec,num_features,num_bins,num_bins)
 
     println("The number of elementes :" + MIRDD.count())
     MIRDD.foreach {x => println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}

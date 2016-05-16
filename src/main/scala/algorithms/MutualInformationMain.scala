@@ -19,9 +19,12 @@ object MutualInformationMain {
       //.setMaster("local[*]")
       .setAppName("MutualINformationMain")
       .set("spark.driver.maxResultSize", "4g")
-      .set("spark.akka.frameSize", "1024")
-      .set("spark.akka.heartbeat.interval","4000s")
-      .set("spark.akka.heartbeat.pauses","2000s"))
+      .set("spark.akka.timeout","20000")
+      .set("spark.worker.timeout","50000")
+      .set("spark.storage.blockManagerSlaveTimeoutMs","500000")
+      .set("spark.akka.frameSize", "1024"))
+      //.set("spark.akka.heartbeat.interval","4000s")
+      //.set("spark.akka.heartbeat.pauses","2000s"))
     //val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
 
     var num_features:Int =100
@@ -84,16 +87,16 @@ object MutualInformationMain {
 
     val trans = mi.normalizeToUnitT(ffdt)
 
-    println("4. trans: "+  trans.getNumPartitions)
+    //println("4. trans: "+  trans.getNumPartitions)
 
     val dvec: RDD[Array[Int]] = mi.discretizeVector1(trans,num_bins)//.repartition(num_new_partitions)
 
-    println("5. dvec : "+dvec.getNumPartitions)
+    //println("5. dvec : "+dvec.getNumPartitions)
+    //val res = dvec.zipWithIndex()
 
+    val MIRDD =mi.computeMIMatrixRDD1(dvec,num_features,num_bins,num_bins,num_new_partitions)
 
-    val MIRDD =mi.computeMIMatrixRDD1(dvec,num_features,num_bins,num_bins)
-
-    println("6. MIRDD : " + MIRDD.getNumPartitions)
+    //println("6. MIRDD : " + MIRDD.getNumPartitions)
 
     //MIRDD.foreach{x=>println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
 
