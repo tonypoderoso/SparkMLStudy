@@ -1,9 +1,9 @@
 package algorithms
 
 //import org.apache.spark
-import breeze.linalg.{DenseVector=>BDV}
+import breeze.linalg.{DenseVector => BDV}
 import breeze.stats.distributions.Gaussian
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.ml.attribute.{AttributeGroup, NominalAttribute, NumericAttribute}
 import org.apache.spark.mllib.linalg.Vectors
 import org.scalatest.FunSuite
@@ -51,12 +51,34 @@ class SparkMLRandomForestTest extends FunSuite{
   // 1000 --> 5min
   // 10000 --> 1h3min
 
-  test("Spark ML RandomForest Feature Importance test"){
-    val sc = new SparkContext("local","LeastSquaresRegressionTest")
-    val num_features = 40000
-    val num_samples = 100000
-    val num_new_partitions = 50
+  //test("Spark ML RandomForest Feature Importance test"){
 
+  def main(args:Array[String]): Unit = {
+    val sc = new SparkContext(new SparkConf()
+      //.setMaster("local[*]")
+      .setAppName("Random Forest")
+      .set("spark.driver.maxResultSize", "4g")
+      .set("spark.akka.timeout","20000")
+      .set("spark.worker.timeout","50000")
+      .set("spark.storage.blockManagerSlaveTimeoutMs","500000")
+      .set("spark.akka.frameSize", "1024"))
+    //.set("spark.akka.heartbeat.interval","4000s")
+    //.set("spark.akka.heartbeat.pauses","2000s"))
+    //val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
+
+    var num_features:Int =100
+    var num_samples:Int =100000
+    var num_bins:Int = 200
+    var num_new_partitions:Int = 5*16
+
+    if (!args.isEmpty){
+
+      num_features = args(0).toString.toInt
+      num_samples = args(1).toString.toInt
+      num_bins = args(2).toString.toInt
+      num_new_partitions = args(3).toString.toInt
+
+    }
     // Distributed Data generation
     //************************************************
     val recordsPerPartition: Int = num_samples/num_new_partitions
@@ -100,6 +122,7 @@ class SparkMLRandomForestTest extends FunSuite{
       })
 
 
+    sc.stop()
 
   }
 
