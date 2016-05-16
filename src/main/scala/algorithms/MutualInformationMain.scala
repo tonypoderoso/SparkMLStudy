@@ -18,7 +18,7 @@ object MutualInformationMain {
     val sc = new SparkContext(new SparkConf()
       //.setMaster("local[*]")
       .setAppName("MutualINformationMain")
-      .set("spark.driver.maxResultSize", "4g")
+      .set("spark.driver.maxResultSize", "40g")
       .set("spark.akka.timeout","20000")
       .set("spark.worker.timeout","50000")
       .set("spark.storage.blockManagerSlaveTimeoutMs","500000")
