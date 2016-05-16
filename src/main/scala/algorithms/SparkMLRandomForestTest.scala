@@ -3,10 +3,9 @@ package algorithms
 //import org.apache.spark
 import breeze.linalg.{DenseVector => BDV}
 import breeze.stats.distributions.Gaussian
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.ml.attribute.{AttributeGroup, NominalAttribute, NumericAttribute}
 import org.apache.spark.mllib.linalg.Vectors
-import org.scalatest.FunSuite
+import org.apache.spark.{SparkConf, SparkContext}
 //import org.apache.spark.ml.param
 import org.apache.spark.ml.regression._
 //import org.apache.spark.ml.classification.RandomForestClassifier
@@ -18,7 +17,7 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 /**
   * Created by tonyp on 2016-04-26.
   */
-class SparkMLRandomForestTest extends FunSuite{
+object SparkMLRandomForestTest {  //{extends FunSuite{
   def setMetadata(
                    data: RDD[LabeledPoint],
                    categoricalFeatures: Map[Int, Int],
