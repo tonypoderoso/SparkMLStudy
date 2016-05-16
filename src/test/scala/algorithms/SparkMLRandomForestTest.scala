@@ -1,8 +1,11 @@
 package algorithms
 
 //import org.apache.spark
+import breeze.linalg.{DenseVector=>BDV}
+import breeze.stats.distributions.Gaussian
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.attribute.{AttributeGroup, NominalAttribute, NumericAttribute}
+import org.apache.spark.mllib.linalg.Vectors
 import org.scalatest.FunSuite
 //import org.apache.spark.ml.param
 import org.apache.spark.ml.regression._
@@ -45,19 +48,37 @@ class SparkMLRandomForestTest extends FunSuite{
   }
 
 
+  // 1000 --> 5min
+  // 10000 --> 1h3min
+
   test("Spark ML RandomForest Feature Importance test"){
     val sc = new SparkContext("local","LeastSquaresRegressionTest")
-    val num_features = 1000
+    val num_features = 50000
     val num_samples = 100000
-    val dataset: LinearExampleDataset = new LinearExampleDataset(num_samples,num_features-1,0.1)
+    val num_new_partitions = 50
+
+    // Distributed Data generation
+    //************************************************
+    val recordsPerPartition: Int = num_samples/num_new_partitions
 
 
-    //println("//////////////////////////////")
-    //dataset.labeledPoints.map(_.label).take(10).foreach(println)
-    //dataset.labeledPoints.map(_.features).take(10).foreach(println)
-    // println("//////////////////////////////")
+    val noise = 0.1
+    val gauss = new Gaussian(0.0,1.0)
+    val weights: Array[Double] = gauss.sample(num_features).toArray
+    val w = BDV(weights)
 
-    val lds: RDD[LabeledPoint] = sc.parallelize(dataset.labeledPoints)
+    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](),num_new_partitions)
+      .mapPartitions { _ => {
+        val gauss=new Gaussian(0.0,1.0)
+        (1 to recordsPerPartition).map { _ =>
+          val x = BDV(gauss.sample(num_features).toArray)
+          val l = x.dot(w) + gauss.sample() * noise
+          new LabeledPoint(l, Vectors.dense(x.toArray))
+        }
+      }.toIterator
+      }
+
+
     val rf= new RandomForestRegressor()
       .setImpurity("variance")
       //.setMaxDepth(3)
