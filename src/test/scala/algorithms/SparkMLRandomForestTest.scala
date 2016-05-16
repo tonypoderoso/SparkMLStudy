@@ -53,7 +53,7 @@ class SparkMLRandomForestTest extends FunSuite{
 
   test("Spark ML RandomForest Feature Importance test"){
     val sc = new SparkContext("local","LeastSquaresRegressionTest")
-    val num_features = 50000
+    val num_features = 40000
     val num_samples = 100000
     val num_new_partitions = 50
 
