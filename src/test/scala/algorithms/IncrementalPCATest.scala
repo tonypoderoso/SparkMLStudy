@@ -58,7 +58,8 @@ class IncrementalPCATest extends FunSuite {
     val FF = 1
     val NUM_DATA=605
 
-    val homedir ="/Users/tonypark/ideaProjects/"
+    //val homedir ="/Users/tonypark/ideaProjects/"
+    val homedir ="/home/tony/IdeaProjects/"
     val csv: RDD[String] = sc.textFile(homedir + "SparkMLStudy/src/test/resources/dataall.csv")
     val datatmp: RDD[Array[String]] = csv.map(line => line.split(','))
     val data: RDD[Vector] = datatmp.map(x => Vectors.dense(x.map(i=>i.toDouble)))
@@ -66,10 +67,12 @@ class IncrementalPCATest extends FunSuite {
     val ipca = new IncrementalPCA
     val datat: Array[Vector] = ipca.rddTranspose(data).collect
 
+    println ("The number of rows of data transposed is " + datat.length)
+
     val datain: RDD[Vector] =ipca.rddTranspose( sc.parallelize((0 until BLOCK_SIZE).map(i=>datat(i))))
     var (u: RDD[Vector],s: Array[Double],mu: Array[Double],n)=ipca.fit(datain)
 
-    (BLOCK_SIZE until 605 by BLOCK_SIZE).map {ii=>
+    /*(BLOCK_SIZE until 605 by BLOCK_SIZE).map {ii=>
       val index = ii to min(ii+BLOCK_SIZE-1,NUM_DATA)
       val datain = ipca.rddTranspose(sc.parallelize(index.map( i=>datat(i))))
       val out = ipca.fit(datain,u,s,mu,Array(n),FF,Array(NUM_EVECS))
@@ -78,7 +81,7 @@ class IncrementalPCATest extends FunSuite {
       mu=out._3
       n=out._4
 
-    }
+    } */
 
     ipca.RowMatrixPrint(new RowMatrix(u)," The EigenVectors (PCs)")
     println("EigenValues : "+ s.map(i=>i.toString + ", ").reduce(_+_))
