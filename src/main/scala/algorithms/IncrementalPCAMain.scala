@@ -15,12 +15,18 @@ import scala.collection.immutable.Range.Inclusive
   * Created by tonypark on 2016. 4. 19..
   */
 object IncrementalPCAMain{
-
+  def featureFromDataset(inputs: RDD[LabeledPoint], normConst: Double): RDD[Vector] ={
+    inputs.map { v =>
+      val x: BDV[Double] = new BDV(v.features.toArray)
+      val y: BDV[Double] = new BDV(Array(v.label))
+      Vectors.dense(BDV.vertcat(x, y).toArray)
+    }
+  }
 
 
   def main(args:Array[String]): Unit = {
     val sc = new SparkContext(new SparkConf()
-      .setMaster("local[*]")
+      //.setMaster("local[*]")
       .setAppName("Random Forest")
       .set("spark.driver.maxResultSize", "40g")
       .set("spark.akka.timeout","20000")
@@ -63,17 +69,11 @@ object IncrementalPCAMain{
       }.toIterator
       }
 
-    def featureFromDataset(inputs: RDD[LabeledPoint], normConst: Double): RDD[Vector] ={
-      inputs.map { v =>
-        val x: BDV[Double] = new BDV(v.features.toArray)
-        val y: BDV[Double] = new BDV(Array(v.label))
-        Vectors.dense(BDV.vertcat(x, y).toArray)
-      }
-    }
 
 
-    val ffd: RDD[Vector] = featureFromDataset(lds,1)
-    val datat: Array[Vector] =ffd.toArray()
+
+    val datat: RDD[Vector] = featureFromDataset(lds,1)
+    //val datat: Array[Vector] =
 
     val NUM_EVECS=16
     val BLOCK_SIZE=1000
@@ -89,9 +89,9 @@ object IncrementalPCAMain{
     val ipca = new IncrementalPCA
     //val datat: Array[Vector] = ipca.rddTranspose(data).collect
 
-    println ("The number of rows of data transposed is " + datat.length)
+    println ("The number of rows of data transposed is " + datat.count)
 
-    val datain: RDD[Vector] =ipca.rddTranspose( sc.parallelize((0 until BLOCK_SIZE).map(i=>datat(i))))
+    //val datain: RDD[Vector] =ipca.rddTranspose( sc.parallelize((0 until BLOCK_SIZE).map(i => datat(i))))
     var (u: RDD[Vector],s: Array[Double],mu: Array[Double],n)=ipca.fit(datain)
 
     (BLOCK_SIZE until 605 by BLOCK_SIZE).map {ii=>
