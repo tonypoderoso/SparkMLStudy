@@ -20,6 +20,7 @@ object IncrementalPCAMain{
       val x: BDV[Double] = new BDV(v.features.toArray)
       val y: BDV[Double] = new BDV(Array(v.label))
       Vectors.dense(BDV.vertcat(x, y).toArray)
+
     }
   }
 
@@ -70,7 +71,7 @@ object IncrementalPCAMain{
       }
 
 
-
+/*
 
     val datat: RDD[Vector] = featureFromDataset(lds,1)
     //val datat: Array[Vector] =
@@ -94,21 +95,24 @@ object IncrementalPCAMain{
     //val datain: RDD[Vector] =ipca.rddTranspose( sc.parallelize((0 until BLOCK_SIZE).map(i => datat(i))))
     var (u: RDD[Vector],s: Array[Double],mu: Array[Double],n)=ipca.fit(datain)
 
-    (BLOCK_SIZE until 605 by BLOCK_SIZE).map {ii=>
-      val index = ii to min(ii+BLOCK_SIZE-1,NUM_DATA)
-      val datain = ipca.rddTranspose(sc.parallelize(index.map( i=>datat(i))))
-      val out = ipca.fit(datain,u,s,mu,Array(n),FF,Array(NUM_EVECS))
-      u=out._1
-      s=out._2
-      mu=out._3
-      n=out._4
 
-    }
+    datat.mapPartitions{part =>
+        val tmp: Iterator[Vector] = part
+        val datain: RDD[Vector] = ipca.rddTranspose(sc.parallelize(tmp.toIndexedSeq))
+        val out = ipca.fit(datain, u, s, mu, Array(n), FF, Array(NUM_EVECS))
+        u = out._1
+        s = out._2
+       // mu = out._3
+       // n = out._4
+      tmp
+
+      }
+
 
     ipca.RowMatrixPrint(new RowMatrix(u)," The EigenVectors (PCs)")
     println("EigenValues : "+ s.map(i=>i.toString + ", ").reduce(_+_))
     println("mu : "+ mu.map(i=>i.toString + ", ").reduce(_+_))
-
+*/
     sc.stop()
   }
 }

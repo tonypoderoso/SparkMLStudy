@@ -18,10 +18,10 @@ object MutualInformationMain {
     val sc = new SparkContext(new SparkConf()
       //.setMaster("local[*]")
       .setAppName("MutualINformationMain")
-      .set("spark.driver.maxResultSize", "40g")
-      .set("spark.akka.timeout","20000")
-      .set("spark.worker.timeout","50000")
-      .set("spark.storage.blockManagerSlaveTimeoutMs","500000")
+      .set("spark.driver.maxResultSize", "90g")
+      .set("spark.akka.timeout","200000")
+      .set("spark.worker.timeout","500000")
+      .set("spark.storage.blockManagerSlaveTimeoutMs","5000000")
       .set("spark.akka.frameSize", "1024"))
       //.set("spark.akka.heartbeat.interval","4000s")
       //.set("spark.akka.heartbeat.pauses","2000s"))
@@ -98,7 +98,9 @@ object MutualInformationMain {
 
     //println("6. MIRDD : " + MIRDD.getNumPartitions)
 
-    //MIRDD.foreach{x=>println("r : " + x.i + " c : "+x.j + " value : "+ x.value)}
+    //val res = MIRDD.collect()
+
+    MIRDD.saveAsTextFile("/tmp/output_mutual_info.txt")
 
     //MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
     //println(MIMAT.rows)
