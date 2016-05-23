@@ -1,8 +1,14 @@
 package algorithms
 
 //import breeze.linalg.{DenseMatrix, DenseVector => BDV}
-import breeze.linalg.{DenseVector=>BDV}
+import java.io.{FileOutputStream, PrintWriter}
+import java.net.URI
+
+import breeze.linalg.{DenseVector => BDV}
 import breeze.stats.distributions.Gaussian
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
+import org.apache.spark.mllib.linalg.distributed.MatrixEntry
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -27,10 +33,10 @@ object MutualInformationMain {
       //.set("spark.akka.heartbeat.pauses","2000s"))
     //val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
 
-    var num_features:Int =100
+    var num_features:Int =10
     var num_samples:Int =100000
     var num_bins:Int = 200
-    var num_new_partitions:Int = 5*16
+    var num_new_partitions:Int = 5
 
     if (!args.isEmpty){
 
@@ -100,7 +106,38 @@ object MutualInformationMain {
 
     //val res = MIRDD.collect()
 
-    MIRDD.saveAsTextFile("/tmp/output_mutual_info.txt")
+    MIRDD.map{x =>
+      "the output is : " + x.i + " , " + x.j + " , " + x.value +"\n"
+    }.saveAsTextFile("/tmp/out")
+
+    /*val conf = new Configuration()
+
+    //하둡에 저장하는 방법
+    val pathString = new Path("/out.log")
+    val fs = FileSystem.get(URI.create("hdfs://jnn-g07-02:8020"), conf)
+    val outFile = fs.makeQualified(pathString)
+    if (fs.exists(outFile)) {
+      fs.delete(outFile)
+    }
+    val fos= fs.create(outFile)
+
+    val res= MIRDD.map { xi =>
+      //xi.count()
+      val xs: Array[MatrixEntry] = xi.collect
+      xs.foreach { x =>
+        val str = "the output is : " + x.i + " , " + x.j + " , " + x.value +"\n"
+        fos.write(str.getBytes())
+      }
+    }
+
+    fos.flush()
+    fos.close()
+     */
+
+
+    //val res1: RDD[String] = sc.parallelize(res)
+    //res1.saveAsTextFile("/tmp/output_mutual_info.txt")
+
 
     //MIMAT.foreachPair{ (x,y)=>println(x._1 + ", " + x._2 + " --> " + y) }
     //println(MIMAT.rows)

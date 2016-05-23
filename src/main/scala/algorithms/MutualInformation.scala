@@ -7,9 +7,11 @@ import org.apache.spark.rdd.RDD
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import breeze.linalg._
 import breeze.numerics.abs
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
 import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, IndexedRowMatrix, MatrixEntry, RowMatrix}
 
+import scala.collection.Map
 import scala.collection.immutable.IndexedSeq
 
 /**
@@ -216,15 +218,15 @@ class MutualInformation {
   }
 
 
-  def computeMIMatrixRDD1(in:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int,num_new_partitions:Int) ={
+  def computeMIMatrixRDD1(in:RDD[Array[Int]],num_features:Int,num_state1:Int,num_state2:Int,num_new_partitions:Int): RDD[MatrixEntry] = {
 
-    //val sc = in.sparkContext
+    val sc = in.sparkContext
 
-    val computeMutualInformation1= ( input: ((Array[Int], Long),(Array[Int],Long))) =>{
+    val computeMutualInformation1 = (input: ((Array[Int], Long), (Array[Int], Long))) => {
 
       val row = input._1._2
       val col = input._2._2
-      var res :MatrixEntry = MatrixEntry(-1,-1,-1)
+      var res: MatrixEntry = MatrixEntry(-1, -1, -1)
       if (row >= col) {
 
         //val num_state2=input._2._1.length
@@ -247,24 +249,40 @@ class MutualInformation {
             0
         }.toArray.reduce(_ + _)
 
-        val tmp= MI / msum
+        val tmp = MI / msum
         //if (row == col)
-        res=MatrixEntry(row, col, tmp)
+        res = MatrixEntry(row, col, tmp)
         //println("r : " + res.i + " c : "+res.j + " value : "+ res.value)
 
 
-      //else
+        //else
         // res=Seq(MatrixEntry(row, col, tmp), MatrixEntry(col, row, tmp))
 
       }
       res
     }
 
-    val a=in.zipWithIndex()
+    val a: RDD[(Array[Int], Long)] = in.zipWithIndex().cache()
     //val b=in.zipWithIndex()
-    a.cartesian(a).repartition(num_new_partitions).map(computeMutualInformation1)
+    //Method 1
+    //a.cartesian(a).repartition(num_new_partitions).map(computeMutualInformation1)
+    a.cartesian(a).map(computeMutualInformation1)
+    //Method 2
+    /*
+    //val b: Map[Array[Int], Long] =a.collectAsMap
 
-    //a.union(a).repartition(computeMutualInformation1)
+    sc.union(
+    b.map{ x =>
+      val belem = sc.broadcast(x)
+      //a.mapPartitions { ys =>
+        a.map { y =>
+          //val tmp: (Array[Int], Long) =y
+          //val tmp2: (Array[Int], Long) =belem.val\
+          //(y,belem.value)computeMutualInformation1)
+          computeMutualInformation1(y, belem.value)
+      //  }
+      }
+    }.toSeq)*/
 
   }
 
