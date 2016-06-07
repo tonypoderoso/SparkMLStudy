@@ -8,5 +8,7 @@ libraryDependencies += "org.apache.spark" % "spark-core_2.10" % "1.6.0"
 
 libraryDependencies += "org.apache.spark" % "spark-mllib_2.10" % "1.6.0"
 
+libraryDependencies += "com.github.fommil.netlib" % "all" % "1.1.2"
+
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.6" % Test
 

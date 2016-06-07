@@ -1,6 +1,5 @@
-package algorithms
+package algorithms.common
 
-import preprocessing._
 
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed.RowMatrix
@@ -9,6 +8,7 @@ import breeze.numerics.{sqrt => brzSqrt}
 import org.apache.spark.storage.StorageLevel
 import java.util.Arrays
 
+import algorithms.EigenValueDecomposition
 import algorithms.common.{BreezeConversion, PrintWrapper}
 import breeze.stats.distributions.Gaussian
 import org.apache.log4j.{Level, Logger}
@@ -16,9 +16,9 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 /**
-  * Created by tonypark on 2016. 5. 30..
+  * Created by tonypark on 2016. 6. 7..
   */
-object SVDExampleMain {
+object SVD {
 
   def toBreeze(rm: RowMatrix): BDM[Double] = {
     val m = rm.numRows().toInt
@@ -34,7 +34,7 @@ object SVDExampleMain {
     mat
   }
 
-def asBreeze(mat:Matrix): BM[Double] = {
+  def asBreeze(mat:Matrix): BM[Double] = {
     if (!mat.isTransposed) {
       new BDM[Double](mat.numRows, mat.numCols, mat.toArray)
     } else {
@@ -43,7 +43,7 @@ def asBreeze(mat:Matrix): BM[Double] = {
     }
   }
 
-def VectorToBreezeVector(v: Vector): BV[Double] =  new BDV(v.toArray)
+  def VectorToBreezeVector(v: Vector): BV[Double] =  new BDV(v.toArray)
 
   /**
     * Creates a Matrix instance from a breeze matrix.
@@ -183,7 +183,7 @@ def VectorToBreezeVector(v: Vector): BV[Double] =  new BDV(v.toArray)
     // criterion specified by tol after max number of iterations.
     // Thus use i < min(k, sigmas.length) instead of i < k.
     if (sigmas.length < k) {
-     println(s"Requested $k singular values but only found ${sigmas.length} converged.")
+      println(s"Requested $k singular values but only found ${sigmas.length} converged.")
     }
     while (i < math.min(k, sigmas.length) && sigmas(i) >= threshold) {
       i += 1
@@ -191,7 +191,7 @@ def VectorToBreezeVector(v: Vector): BV[Double] =  new BDV(v.toArray)
     val sk = i
 
     if (sk < k) {
-     println(s"Requested $k singular values but only found $sk nonzeros.")
+      println(s"Requested $k singular values but only found $sk nonzeros.")
     }
 
     // Warn at the end of the run as well, for increased visibility.
@@ -222,121 +222,5 @@ def VectorToBreezeVector(v: Vector): BV[Double] =  new BDV(v.toArray)
     } else {
       SingularValueDecomposition(null, s, V)
     }
-  }
-
-
-  def main(args: Array[String]): Unit = {
-    def featureFromDataset(inputs: RDD[LabeledPoint], normConst: Double): RDD[Vector] = {
-      inputs.map { v =>
-        val x: BDV[Double] = new BDV(v.features.toArray)
-        val y: BDV[Double] = new BDV(Array(v.label))
-        Vectors.dense(BDV.vertcat(x, y).toArray)
-      }
-    }
-
-    //Logger.getLogger("org").setLevel(Level.WARN)
-
-    /// preprocessing /////////
-    val sc = new SparkContext(new SparkConf()
-      //.setMaster("local[*]")
-      .setAppName("SVDExample")
-      .set("spark.driver.maxResultSize", "90g")
-      .set("spark.akka.timeout", "200000")
-      .set("spark.worker.timeout", "500000")
-      .set("spark.storage.blockManagerSlaveTimeoutMs", "5000000")
-      .set("spark.akka.frameSize", "1024"))
-    //val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
-
-    var num_features: Int = 100
-    var num_samples: Int = 100000
-    var num_bins: Int = 200
-    var num_new_partitions: Int = 50
-    var num_singularvalues=10
-    var tolerance: Double = 1e-10
-    var repetition = 300
-
-    if (!args.isEmpty) {
-
-      num_features = args(0).toString.toInt
-      num_samples = args(1).toString.toInt
-      num_bins = args(2).toString.toInt
-      num_new_partitions = args(3).toString.toInt
-      num_singularvalues = args(4).toString.toInt
-      tolerance = args(5).toString.toDouble
-      repetition = args(6).toString.toInt
-
-    }
-    val recordsPerPartition: Int = num_samples / num_new_partitions
-
-
-    val noise = 0.1
-    val gauss = new Gaussian(0.0, 1.0)
-    val weights: Array[Double] = gauss.sample(num_features).toArray
-    val w = BDV(weights)
-    //w(3)=0.0
-
-    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
-      .mapPartitions { _ => {
-        val gauss = new Gaussian(0.0, 1.0)
-        val r = scala.util.Random
-        (1 to recordsPerPartition).map { _ =>
-          val x = BDV(gauss.sample(num_features).toArray)
-          //x(3)=NaN
-
-
-          val l = x.dot(w) + gauss.sample() * noise
-          //(1 to r.nextInt(num_features)).map(i=> x(r.nextInt(num_features))=Double.NaN)
-          new LabeledPoint(l, Vectors.dense(x.toArray))
-        }
-      }.toIterator
-      }
-
-    ///val featureMatrix=featureFromDataset(lds,1).cache
-
-    //val dataRDD: RowMatrix = new RowMatrix(featureMatrix)
-
-
-    val dataRDD: RowMatrix = lds.computeCovarianceRDD(num_samples, num_features).toRowMatrix()
-
-    /**
-      * The actual SVD implementation, visible for testing.
-      *
-      * @param k        number of leading singular values to keep (0 &lt; k &lt;= n)
-      * @param computeU whether to compute U
-      * @param rCond    the reciprocal condition number
-      * @param maxIter  max number of iterations (if ARPACK is used)
-      * @param tol      termination tolerance (if ARPACK is used)
-      * @param mode     computation mode (auto: determine automatically which mode to use,
-      *                 local-svd: compute gram matrix and computes its full SVD locally,
-      *                 local-eigs: compute gram matrix and computes its top eigenvalues locally,
-      *                 dist-eigs: compute the top eigenvalues of the gram matrix distributively)
-      * @return SingularValueDecomposition(U, s, V). U = null if computeU = false.
-      */
-
-
-    //val start = System.currentTimeMillis
-
-    val svd = computeSVD(dataRDD , num_singularvalues, true, 1e-9,
-      math.max(repetition,num_singularvalues*3), tolerance,"dist-eigs")
-
-    //println("%.3f seconds".format((System.currentTimeMillis - start)/1000.0))
-    val U: RowMatrix = svd.U
-    val s: Vector = svd.s
-    val V: Matrix = svd.V
-
-    val res = toBreeze(U)
-
-
-    println( "The size of U is row : " + U.numRows() + " col : "+U.numCols())
-
-
-
-    //PrintWrapper.RowMatrixPrint(U,"U Matrix")
-
-
-
-
-    //U.rows.saveAsTextFile("/SVD_Result")
-
   }
 }

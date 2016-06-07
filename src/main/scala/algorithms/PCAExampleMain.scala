@@ -2,11 +2,11 @@ package algorithms
 
 import java.util.Arrays
 
-import algorithms.common.{BreezeConversion, PrintWrapper}
+import algorithms.common.{BreezeConversion, PrintWrapper, SVD,BLAS}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, Matrix => BM, svd => brzSvd}
 import breeze.stats.distributions.Gaussian
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vector, Vectors}
+import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
@@ -61,7 +61,70 @@ object PCAExampleMain {
     }
   }
 
+  def triuToFull( n: Int, U: Array[Double]): Matrix = {
+    val G = new BDM[Double](n, n)
 
+    var row = 0
+    var col = 0
+    var idx = 0
+    var value = 0.0
+    while (col < n) {
+      row = 0
+      while (row < col) {
+        value = U(idx)
+        G(row, col) = value
+        G(col, row) = value
+        idx += 1
+        row += 1
+      }
+      G(col, col) = U(idx)
+      idx += 1
+      col +=1
+    }
+
+    Matrices.dense(n, n, G.data)
+  }
+
+
+  def computeGramianMatrix(mat:RowMatrix): Matrix = {
+    val n = mat.numCols().toInt
+    //mat.checkNumColumns(n)
+    // Computes n*(n+1)/2, avoiding overflow in the multiplication.
+    // This succeeds when n <= 65535, which is checked above
+    val nt = if (n % 2 == 0) ((n / 2) * (n + 1)) else (n * ((n + 1) / 2))
+
+    // Compute the upper triangular part of the gram matrix.
+    val GU: BDV[Double] = mat.rows.treeAggregate(new BDV[Double](nt))(
+      seqOp = (U, v) => {
+        BLAS.spr(1.0, v, U.data)
+        U
+      }, combOp = (U1, U2) => U1 += U2)
+
+    triuToFull(n, GU.data)
+  }
+
+/*
+
+  def computePCAndEVDist(mat:RowMatrix,k: Int): (Matrix, Vector) = {
+    val n = mat.numCols().toInt
+    require(k > 0 && k <= n, s"k = $k out of range (0, n = $n]")
+
+    val Cov: Matrix = mat.computeCovariance()
+
+    val brzSvd.SVD(u: BDM[Double], s: BDV[Double], _) = brzSvd(Cov)
+    //val svdresult = SVD.computeSVD()
+
+    val eigenSum = s.data.sum
+    val explainedVariance = s.data.map(_ / eigenSum)
+
+    if (k == n) {
+      (Matrices.dense(n, k, u.data), Vectors.dense(explainedVariance))
+    } else {
+      (Matrices.dense(n, k, Arrays.copyOfRange(u.data, 0, n * k)),
+        Vectors.dense(Arrays.copyOfRange(explainedVariance, 0, k)))
+    }
+  }
+  */
 
 
   def main(args: Array[String]): Unit = {
