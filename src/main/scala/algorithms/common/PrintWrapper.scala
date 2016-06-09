@@ -1,5 +1,6 @@
 package algorithms.common
 
+import breeze.linalg.min
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.mllib.linalg.distributed.RowMatrix
 
@@ -20,20 +21,26 @@ object  PrintWrapper {
     println("*********************************************************")
   }
 
-  def RowMatrixPrint(rm: RowMatrix, str: String) = {
+  def RowMatrixPrint(rm: RowMatrix, str: String, rowin:Int = -1, colin:Int = -1) = {
 
     println("*********************************************************")
     println(str)
     println("*********************************************************")
-    val row = rm.numRows.toInt
-    val col = rm.numCols.toInt
+    var row=rm.numRows.toInt
+    if (rowin != -1) {
+      row = rowin
+    }
+    var col = rm.numCols.toInt
+    if (colin != -1) {
+       col = colin
+    }
     val tmp = BreezeConversion.toBreeze(rm)
     println(" The Matrix is of size with rows : " + row.toString + " and cols : " + col.toString)
 
     (0 until row).foreach { row =>
       (0 until col).foreach { col =>
         //print(tmp(row, col).toString.substring(0,min(7,tmp(row,col).toString.length)) + ", ")
-        print(tmp(row, col).toString + ", ")
+        print(tmp(row, col).toString.take(6) + ", ")
       }
       println(" ; ")
     }

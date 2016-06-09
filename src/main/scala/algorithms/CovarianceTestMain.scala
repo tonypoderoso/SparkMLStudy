@@ -1,17 +1,31 @@
 package algorithms
 
+import algorithms.common.PrintWrapper
+import breeze.linalg.{DenseMatrix => BDM, cov => brzCov}
 import preprocessing._
 import breeze.stats.distributions.Gaussian
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.{Matrix, Vector, Vectors}
+import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry, RowMatrix}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 /**
   * Created by tonypark on 2016. 6. 7..
   */
 object CovarianceTestMain {
+
+def toBreeze(matin : CoordinateMatrix): BDM[Double] = {
+    val m = matin.numRows().toInt
+    val n = matin.numCols().toInt
+    val mat = BDM.zeros[Double](m, n)
+    matin.entries.collect().foreach { case MatrixEntry(i, j, value) =>
+      mat(i.toInt, j.toInt) = value
+    }
+    mat
+  }
 
   def main(args: Array[String]): Unit = {
 
@@ -19,7 +33,7 @@ object CovarianceTestMain {
     //Logger.getLogger("org").setLevel(Level.OFF)
 
     val sc = new SparkContext(new SparkConf()
-      //.setMaster("local[*]").setAppName("PCAExampleTest")
+      .setMaster("local[*]").setAppName("PCAExampleTest")
       .set("spark.driver.maxResultSize", "90g")
       .set("spark.akka.timeout","200000")
       .set("spark.worker.timeout","500000")
@@ -31,10 +45,26 @@ object CovarianceTestMain {
 
     //val sc = new SparkContext(new SparkConf().setMaster("local[*]"))
 
-    var num_features:Int =1000
-    var num_samples:Int =100000
-    var num_bins:Int = 200
-    var num_new_partitions:Int = 50
+/*
+    val csv: RDD[String] = sc.textFile("/Users/tonypark/ideaProjects/SparkMLStudy/src/test/resources/pcatest.csv")
+
+    val dataRDD: RDD[Vector] = csv.map(line => Vectors.dense( line.split(",").map(elem => elem.trim.toDouble)))
+    val mat = new RowMatrix(dataRDD)
+    val num_samples=mat.numRows().toInt
+    val num_features=mat.numCols().toInt
+    val num_new_partitions=dataRDD.getNumPartitions
+
+    val lds: RDD[LabeledPoint] = dataRDD.map{ x=>
+      new LabeledPoint(0, x)
+    }
+
+*/
+
+
+    var num_features:Int =10000
+    var num_samples:Int =10000
+    var num_bins:Int = 20
+    var num_new_partitions:Int = 5*16
 
     if (!args.isEmpty){
 
@@ -45,32 +75,32 @@ object CovarianceTestMain {
 
     }
 
-
     val recordsPerPartition: Int = num_samples / num_new_partitions
-
     val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
-      .mapPartitions { _ => {
+      .mapPartitionsWithIndex { (idx,iter) => {
         val gauss = new Gaussian(0.0, 1.0)
-        val r = scala.util.Random
-        (1 to recordsPerPartition).map { _ =>
-          new LabeledPoint(0, Vectors.dense(gauss.sample(num_features).toArray))
+        (1 to recordsPerPartition).map { i =>
+          new LabeledPoint(idx, Vectors.dense(gauss.sample(num_features).toArray))
         }
       }.toIterator
       }
 
+
     lds.cache()
-    //val start = System.currentTimeMillis
-    val covrdd = lds.computeCovarianceRDD(num_samples, num_features)
 
-    val res=covrdd.toRowMatrix()
+    val start = System.currentTimeMillis
+    val aa: (Int, Vector) =lds.computeCovarianceRDD(num_samples, num_features).first()
 
+    //val mat=new RowMatrix(lds.map(x => Vectors.dense(x.features.toArray)))
 
+    //val rowcov: Matrix = mat.computeCovariance()
+    //val res: Iterator[String] =Iterator.tabulate(10){ i=>i.toString + ","}
 
-    res.rows.take(100).foreach{x => x.toArray.foreach(println)}
+    println("%d dim %.3f seconds".format(num_features, (System.currentTimeMillis - start)/1000.0))
+    //println(rowcov)
 
-
-
-    //println("%d dim %.3f seconds".format(num_features, (System.currentTimeMillis - start) / 1000.0))
+    //println(distcov)
+    //PrintWrapper.RowMatrixPrint(distcov,"New Covariance computation",20,20)
 
     sc.stop()
 

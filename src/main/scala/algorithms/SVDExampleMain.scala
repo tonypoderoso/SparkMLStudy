@@ -1,7 +1,5 @@
 package algorithms
 
-import preprocessing._
-
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed.RowMatrix
 import breeze.linalg.{CSCMatrix => BSM, DenseMatrix => BDM, DenseVector => BDV, Matrix => BM, SparseVector => BSV, Vector => BV, axpy => brzAxpy, svd => brzSvd}
@@ -15,6 +13,8 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
+
+import preprocessing._
 /**
   * Created by tonypark on 2016. 5. 30..
   */
@@ -296,7 +296,7 @@ def VectorToBreezeVector(v: Vector): BV[Double] =  new BDV(v.toArray)
     //val dataRDD: RowMatrix = new RowMatrix(featureMatrix)
 
 
-    val dataRDD: RowMatrix = lds.computeCovarianceRDD(num_samples, num_features).toRowMatrix()
+    val dataRDD: RowMatrix = lds.computeCovarianceRDD1(num_samples, num_features,num_new_partitions).toRowMatrix()
 
     /**
       * The actual SVD implementation, visible for testing.

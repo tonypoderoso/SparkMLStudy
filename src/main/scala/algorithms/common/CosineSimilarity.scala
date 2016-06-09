@@ -1,6 +1,6 @@
 package algorithms.common
 
-import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
+import org.apache.spark.mllib.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry, RowMatrix}
 //import org.apache.spark.util.random.XORShiftRandom
 
@@ -36,13 +36,14 @@ def columnSimilaritiesDIMSUM( mat:RowMatrix,
     val colMagsCorrected = colMags.map(x => if (x == 0) 1.0 else x)
 
     val sc = mat.rows.context
+    val ttt: Array[Double] =colMagsCorrected.map(c => sg / c)
     val pBV = sc.broadcast(colMagsCorrected.map(c => sg / c))
     val qBV = sc.broadcast(colMagsCorrected.map(c => math.min(sg, c)))
 
     val sims = mat.rows.mapPartitionsWithIndex { (indx, iter) =>
       val p = pBV.value
       val q = qBV.value
-
+      val ttt: Iterator[Vector] = iter
       val rand = new XORShiftRandom(indx)
       val scaled = new Array[Double](p.size)
       iter.flatMap { row =>

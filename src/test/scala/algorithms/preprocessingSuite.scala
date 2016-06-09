@@ -1,92 +1,19 @@
 package algorithms
 
-import preprocessing._
-
-import scala.collection.immutable.IndexedSeq
-import scala.collection.mutable.ArrayBuffer
-import breeze.numerics._
+import algorithms.preprocessing._
 import breeze.stats.distributions.Gaussian
+import breeze.linalg.{cov=>brzCov,DenseMatrix=>BDM}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.mllib.linalg._
-import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry, RowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, RowMatrix}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.FunSuite
 
+import scala.collection.immutable.IndexedSeq
 
 class preprocessingSuite extends FunSuite {
-/*
-  test("Test Test") {
-
-    Logger.getLogger("org").setLevel(Level.OFF)
-
-    val conf = new SparkConf()
-      .setAppName("FirstExample")
-      .setMaster("local[*]")
-    val sc = new SparkContext(conf)
-
-    val num_features: Int = 1000
-    val num_samples: Int = 100000
-    val num_bins: Int = 200
-    val num_new_partitions: Int = 5 * 16
-
-    val recordsPerPartition: Int = num_samples / num_new_partitions
-
-    val noise = 0.1
-    val gauss = new Gaussian(0.0, 1.0)
-    val weights: Array[Double] = gauss.sample(num_features).toArray
-    val w: BDV[Double] = BDV(weights)
-    w(3) = 0.0
-
-    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
-      .mapPartitions { _ => {
-        val gauss = new Gaussian(0.0, 1.0)
-        val r = scala.util.Random
-        (1 to recordsPerPartition).map { _ =>
-          val x = BDV(gauss.sample(num_features).toArray)
-          x(3) = NaN
-
-
-          val l = x.dot(w) + gauss.sample() * noise
-          (1 to r.nextInt(num_features)).map(i => x(r.nextInt(num_features)) = Double.NaN)
-          new LabeledPoint(l, Vectors.dense(x.toArray))
-        }
-      }.toIterator
-      }
-
-    val sims = lds.mapPartitionsWithIndex { (indx, iter) =>
-
-      iter.flatMap { row =>
-        row match {
-          case DenseVector(values) =>
-            val n = values.size
-            var i = 0
-            while (i < n) {
-              scaled(i) = values(i) / q(i)
-              i += 1
-            }
-            Iterator.tabulate (n) { i =>
-              val buf = new ListBuffer[((Int, Int), Double)]()
-              val iVal = scaled(i)
-              if (iVal != 0 && rand.nextDouble() < p(i)) {
-                var j = i + 1
-                while (j < n) {
-                  val jVal = scaled(j)
-                  if (jVal != 0 && rand.nextDouble() < p(j)) {
-                    buf += (((i, j), iVal * jVal))
-                  }
-                  j += 1
-                }
-              }
-              buf
-            }.flatten
-        }
-      }
-
-    }
-
-  }
 
   test("Operator Test") {
 
@@ -99,7 +26,7 @@ class preprocessingSuite extends FunSuite {
     (aa + bb).foreach(println)
 
   }
-
+/*
   test("PreProcessing Test") {
 
     Logger.getLogger("org").setLevel(Level.OFF)
@@ -109,31 +36,21 @@ class preprocessingSuite extends FunSuite {
       .setMaster("local[*]")
     val sc = new SparkContext(conf)
 
-    var num_features: Int = 1000
-    var num_samples: Int = 100000
-    var num_bins: Int = 200
-    var num_new_partitions: Int = 5 * 16
+    val num_features: Int = 1000
+    val num_samples: Int = 100000
+    val num_new_partitions: Int = 5 * 16
 
     val recordsPerPartition: Int = num_samples / num_new_partitions
-
-    val noise = 0.1
-    val gauss = new Gaussian(0.0, 1.0)
-    val weights: Array[Double] = gauss.sample(num_features).toArray
-    val w: BDV[Double] = BDV(weights)
-    w(3) = 0.0
 
     val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
       .mapPartitions { _ => {
         val gauss = new Gaussian(0.0, 1.0)
         val r = scala.util.Random
         (1 to recordsPerPartition).map { _ =>
-          val x = BDV(gauss.sample(num_features).toArray)
-          x(3) = NaN
-
-
-          val l = x.dot(w) + gauss.sample() * noise
+          val x: Array[Double] = gauss.sample(num_features).toArray
+          x(3) = Double.NaN
           (1 to r.nextInt(num_features)).map(i => x(r.nextInt(num_features)) = Double.NaN)
-          new LabeledPoint(l, Vectors.dense(x.toArray))
+          new LabeledPoint(0, Vectors.dense(x))
         }
       }.toIterator
       }
@@ -152,8 +69,6 @@ class preprocessingSuite extends FunSuite {
     println(idx1.length)
     println(idx2.length)
     println(idx3.length)
-
-    var cov = lds.computeCov
 
     sc.stop()
 
@@ -177,9 +92,8 @@ class preprocessingSuite extends FunSuite {
     val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
       .mapPartitions { _ => {
         val gauss = new Gaussian(0.0, 1.0)
-        val r = scala.util.Random
         (1 to recordsPerPartition).map { _ =>
-          new LabeledPoint(0, Vectors.dense(gauss.sample(num_features).toArray))
+          new LabeledPoint(0, Vectors.dense(gauss.sample(num_features).toArray * 5.0))
         }
       }.toIterator
       }
@@ -188,7 +102,7 @@ class preprocessingSuite extends FunSuite {
     val mat: RowMatrix = new RowMatrix( lds.map( x => Vectors.dense(x.features.toArray) ) )
     val cov: CoordinateMatrix = mat.columnSimilarities()
     val cov2: Matrix = mat.computeCovariance()
-    val cov3: CoordinateMatrix = lds.computeCovarianceRDD(num_samples, num_features)
+    val cov3: RowMatrix = lds.computeCovarianceRDD1(num_samples, num_features,num_new_partitions).toRowMatrix
 
     println(num_features + " dim")
 
@@ -199,7 +113,7 @@ class preprocessingSuite extends FunSuite {
     println(cov2.toString())
 
     println("proposed covariance (RDD)")
-    cov3.toRowMatrix().rows.collect().foreach(println)
+    cov3.rows.collect().foreach(println)
 
     sc.stop()
 
@@ -214,26 +128,37 @@ class preprocessingSuite extends FunSuite {
       .setMaster("local[*]")
     val sc = new SparkContext(conf)
 
-    val num_features: Int = 50000
-    val num_samples: Int = 10000
+    val num_features: Int = 100
+    val num_samples: Int = 1000
     val num_new_partitions: Int = 5 * 16
 
     val recordsPerPartition: Int = num_samples / num_new_partitions
+    val gauss = new Gaussian(0.0, 1.0)
+    val dat: IndexedSeq[LabeledPoint] =(1 to num_samples).map { _ =>
+      new LabeledPoint(0, Vectors.dense(gauss.sample(num_features).toArray))
+    }
 
-    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
-      .mapPartitions { _ => {
-        val gauss = new Gaussian(0.0, 1.0)
-        val r = scala.util.Random
-        (1 to recordsPerPartition).map { _ =>
-          new LabeledPoint(0, Vectors.dense(gauss.sample(num_features).toArray))
-        }
-      }.toIterator
-      }
+    val local = dat.map{x=>x.features.toArray}
+
+    val lds: RDD[LabeledPoint] = sc.parallelize(dat,num_new_partitions)
+
 
     lds.cache()
     val start = System.currentTimeMillis
-    lds.computeCovarianceRDD(num_samples, num_features)
+    val distcomp: RowMatrix =lds.computeCovarianceRDD1(num_samples, num_features,num_new_partitions).toRowMatrix
+
+
     println("%d dim %.3f seconds".format(num_features, (System.currentTimeMillis - start)/1000.0))
+    val localmat: Matrix =lds.DenseFeatureMatrix
+    println(localmat)
+    val localcov: BDM[Double] =brzCov(new BDM(localmat.numRows,localmat.numCols,localmat.toArray))
+
+    println(localcov)
+    val firstelem: Array[Double] = distcomp.rows.map{ x=>x.toArray(0)}.collect
+
+
+    (0 until 100).foreach{i=>
+    println(firstelem(i) + " vs " + localcov(i,0) )}
 
     sc.stop()
 
