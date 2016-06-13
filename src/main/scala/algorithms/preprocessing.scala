@@ -177,58 +177,39 @@ object preprocessing {
 
     }
 
-    def computeCovarianceRDD(N: Int, P: Int): RDD[(Int, Vector)] = {
+    def computeCovarianceRDD(N: Int, P: Int): List[(Int, RowMatrix)] = {
 
       val colMean: Array[Double] = r
         .map( x => x.features.toArray )
         .reduce( _ + _ )
         .map( x => x / N )
 
-      //new CoordinateMatrix(
-      //  MeanShiftedMat.columnSimilarities().toRowMatrix().rows
-      //    .zipWithIndex()
-      //    .map( x => Vectors.dense( x._1.toArray * colL2Norm * colL2Norm(x._2.toInt) / (N-1) ) )
-      //)
-
-      //new CoordinateMatrix(
-      //  MeanShiftedMat.columnSimilarities().entries
-      //    .map( x => MatrixEntry(x.i, x.j, colL2Norm(x.i.toInt) * colL2Norm(x.j.toInt) * x.value / (N-1)) )
-      //)
-
-      //new CoordinateMatrix(
-      //  MeanShiftedMat.columnSimilaritiesDIMSUM(colL2Norm).entries
-      //    .map( x => MatrixEntry(x.i, x.j, colL2Norm(x.i.toInt) * colL2Norm(x.j.toInt) * x.value / (N-1)) )
-      //)
-
       val MeanShiftedMat: Array[Array[Double]] = r
         .map( x => ( x.features.toArray - colMean ) / math.sqrt(N-1) )
         .collect()
 
-      val K: Int = 2
-      val PartitionedMat: ListBuffer[BDM[Double]] = new ListBuffer
-      for ( i <- 1 to K ) {
-        PartitionedMat += new BDM((P / K), N, MeanShiftedMat
-          .map( x => x.slice((i - 1) * (P / K), i * (P / K)) ).flatten)
-      }
+      val transposedMat: Seq[Vector] = (new BDM(P, N, MeanShiftedMat.flatten))
+        .t
+        .toArray
+        .sliding(N,N)
+        .toArray
+        .map( x => Vectors.dense(x) )
+        .toSeq
 
-      val buf: ListBuffer[(Int, (Int, BDM[Double]))] = new ListBuffer
-      for ( i <- 1 to K ) {
-        for ( j <- 1 to K ) {
-          buf += ((i, (j, PartitionedMat(j-1) * PartitionedMat(i-1).t)))
-        }
-      }
-      val ConcatDenseMatrix = (x: BDM[Double], y: BDM[Double]) => BDM.vertcat(x, y)
-      r.context.parallelize(buf)
-        .groupByKey()
-        .mapValues( x => Vectors.dense(x.toArray.sortBy(_._1).map(_._2).reduceLeft(ConcatDenseMatrix).toArray) )
-        .repartitionAndSortWithinPartitions(
-          new Partitioner() {
-            def numPartitions: Int = K
-            def getPartition(key: Any): Int = key.asInstanceOf[Int]
-          }
-        )
+      val transposedMatRDD: RowMatrix = new RowMatrix( r.context.parallelize(transposedMat) )
 
+      // The number of partitions
+      val K: Int = ( if (P < 10000) 2 else if (P < 40000) 2 else 4 )
+
+      val buf: ListBuffer[(Int, RowMatrix)] = new ListBuffer
+      for ( i <- 1 to K ) {
+        buf += ((i, transposedMatRDD.multiply( Matrices.dense((P / K), N, MeanShiftedMat
+          .map( x => x.slice((i - 1) * (P / K), i * (P / K)) ).flatten).transpose ) ))
+      }
+      buf.toList
+      //buf(0)._2.rows.union(buf(1)._2.rows)
     }
+
 
 
 

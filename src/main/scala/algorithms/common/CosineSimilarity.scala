@@ -88,7 +88,7 @@ def columnSimilaritiesDIMSUM( mat:RowMatrix,
                 while (j < n) {
                   val jVal = scaled(j)
                   if (jVal != 0 && rand.nextDouble() < p(j)) {
-                    buf += (((i, j), iVal * jVal))
+                    buf. += (((i, j), iVal * jVal))
                   }
                   j += 1
                 }

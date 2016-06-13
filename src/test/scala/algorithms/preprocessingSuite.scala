@@ -121,8 +121,8 @@ class preprocessingSuite extends FunSuite {
 
   test("Covariance Runtime Test") {
 
-    Logger.getLogger("org").setLevel(Level.OFF)
 
+    Logger.getLogger("org").setLevel(Level.OFF)
     val conf = new SparkConf()
       .setAppName("FirstExample")
       .setMaster("local[*]")

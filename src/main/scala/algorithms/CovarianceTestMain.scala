@@ -33,7 +33,7 @@ def toBreeze(matin : CoordinateMatrix): BDM[Double] = {
     //Logger.getLogger("org").setLevel(Level.OFF)
 
     val sc = new SparkContext(new SparkConf()
-      .setMaster("local[*]").setAppName("PCAExampleTest")
+        .setMaster("local[*]").setAppName("PCAExampleTest")
       .set("spark.driver.maxResultSize", "90g")
       .set("spark.akka.timeout","200000")
       .set("spark.worker.timeout","500000")
@@ -59,10 +59,8 @@ def toBreeze(matin : CoordinateMatrix): BDM[Double] = {
     }
 
 */
-
-
-    var num_features:Int =10000
-    var num_samples:Int =10000
+    var num_features:Int =100
+    var num_samples:Int =100
     var num_bins:Int = 20
     var num_new_partitions:Int = 5*16
 
@@ -89,7 +87,14 @@ def toBreeze(matin : CoordinateMatrix): BDM[Double] = {
     lds.cache()
 
     val start = System.currentTimeMillis
-    val aa: (Int, Vector) =lds.computeCovarianceRDD(num_samples, num_features).first()
+    val aa: List[(Int, RowMatrix)] =lds.computeCovarianceRDD(num_samples, num_features)
+
+
+    val bb = aa.toArray
+    println("first Part")
+    bb(0)._2.rows.first().toArray.foreach(println)
+    println("Second Part")
+    bb(1)._2.rows.first().toArray.foreach(println)
 
     //val mat=new RowMatrix(lds.map(x => Vectors.dense(x.features.toArray)))
 

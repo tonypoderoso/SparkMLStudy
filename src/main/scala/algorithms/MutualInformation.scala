@@ -221,61 +221,57 @@ class MutualInformation {
 
   }
 
+
   def computeMIMatrixRDD2(in: RDD[Array[Int]], num_features: Int, num_state1: Int,
-                          num_state2: Int, num_new_partitions: Int) = {
+                          num_state2: Int, num_new_partitions: Int)= {
 
     val sc = in.sparkContext
 
     val a: RDD[(Array[Int], Long)] = in.zipWithIndex().cache()
+    val a1=in.zipWithIndex().cache()
+    val buf = new ListBuffer[((Long, Long), Double)]()
+    a.foreach{ b =>
+      //val b: (Array[Int], Long) = a.first()
+      val onerow = sc.broadcast(b)
+      val computeMutualInformation2: ((Array[Int], Long)) => ListBuffer[((Long, Long), Double)]
+      = (input: ((Array[Int], Long))) => {
 
-    a.mapPartitions{  iter =>
-
-      val res1 = iter.map { row =>
-        val onerow: Broadcast[(Array[Int], Long)] = sc.broadcast(row)
-        val tt: (Array[Int], Long) = onerow.value
-
-        val computeMutualInformation2: ((Array[Int], Long)) => MatrixEntry = (input: ((Array[Int], Long))) => {
-
-          val recrow = onerow.value
-
-          val row = recrow._2
-          val col = input._2
-          var res: MatrixEntry = MatrixEntry(-1, -1, -1)
-          if (row >= col) {
-
-            val output = BDM.zeros[Int](num_state1, num_state2)
-            val rsum: BDV[Int] = BDV.zeros[Int](num_state1)
-            val csum: BDV[Int] = BDV.zeros[Int](num_state2)
-            val msum: Int = recrow._1.length
-
-            recrow._1.zip(input._1).map { x =>
-              output(x._1, x._2) = output(x._1, x._2) + 1
-              rsum(x._1) = rsum(x._1) + 1
-              csum(x._2) = csum(x._2) + 1
-            }
-
-            val MI = output.mapPairs { (coo, x) =>
-              if (x > 0) {
-                val tmp = msum.toDouble / (rsum(coo._1) * csum(coo._2))
-                x * math.log(x * tmp) / math.log(2)
-              } else
-                0
-            }.toArray.reduce(_ + _)
-
-            val tmp = MI / msum
-            res = MatrixEntry(row, col, tmp)
+        val recrow: (Array[Int], Long) = onerow.value
+        val col = recrow._2
+        val row = input._2
+        var res: MatrixEntry = MatrixEntry(-1, -1, -1)
+        if (row >= col) {
+          val output = BDM.zeros[Int](num_state1, num_state2)
+          val rsum: BDV[Int] = BDV.zeros[Int](num_state1)
+          val csum: BDV[Int] = BDV.zeros[Int](num_state2)
+          val msum: Int = recrow._1.length
+          recrow._1.zip(input._1).map { x =>
+            output(x._1, x._2) = output(x._1, x._2) + 1
+            rsum(x._1) = rsum(x._1) + 1
+            csum(x._2) = csum(x._2) + 1
           }
-          res
+          val MI = output.mapPairs { (coo, x) =>
+            if (x > 0) {
+              val tmp = msum.toDouble / (rsum(coo._1) * csum(coo._2))
+              x * math.log(x * tmp) / math.log(2)
+            } else
+              0
+          }.toArray.reduce(_ + _)
+          val tmp = MI / msum
+
+          buf += (((row, col), tmp))  //MatrixEntry(row, col, tmp)
         }
-        a.map(computeMutualInformation2)
+        buf
       }
-      res1
+      a1.flatMap(computeMutualInformation2)
     }
+    //reduce(_.union(_))
+    buf//reduce(_.union(_))
   }
 
 
     def computeMIMatrixRDD1(in: RDD[Array[Int]], num_features: Int, num_state1: Int,
-                            num_state2: Int, num_new_partitions: Int): RDD[MatrixEntry] = {
+                            num_state2: Int, num_new_partitions: Int)= {
 
       val sc = in.sparkContext
 
@@ -287,8 +283,8 @@ class MutualInformation {
 
         val row = input._1._2
         val col = input._2._2
-        var res: MatrixEntry = MatrixEntry(-1, -1, -1)
-        if (row >= col) {
+        var res:((Long,(Long,Double)))= ((-1,(-1,-1.0)))//: MatrixEntry = MatrixEntry(-1, -1, -1)
+        if (row > col) {
 
           val output = BDM.zeros[Int](num_state1, num_state2)
           val rsum: BDV[Int] = BDV.zeros[Int](num_state1)
@@ -296,9 +292,9 @@ class MutualInformation {
           val msum: Int = input._1._1.length
 
           input._1._1.zip(input._2._1).map { x =>
-            output(x._1, x._2) = output(x._1, x._2) + 1
-            rsum(x._1) = rsum(x._1) + 1
-            csum(x._2) = csum(x._2) + 1
+            output(x._1-1, x._2-1) = output(x._1-1, x._2-1) + 1
+            rsum(x._1-1) = rsum(x._1-1) + 1
+            csum(x._2-1) = csum(x._2-1) + 1
           }
 
           val MI = output.mapPairs { (coo, x) =>
@@ -310,7 +306,7 @@ class MutualInformation {
           }.toArray.reduce(_ + _)
 
           val tmp = MI / msum
-          res = MatrixEntry(row, col, tmp)
+          res = ((row,(col,tmp))) //MatrixEntry(row, col, tmp)
         }
         res
       }
