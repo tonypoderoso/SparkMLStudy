@@ -64,7 +64,7 @@ class IncrementalPCATest extends FunSuite {
     val datatmp: RDD[Array[String]] = csv.map(line => line.split(','))
     val data: RDD[Vector] = datatmp.map(x => Vectors.dense(x.map(i=>i.toDouble)))
 
-    val ipca = new IncrementalPCA
+    val ipca = new IncrementalPCA("aaa")
     val datat: Array[Vector] = ipca.rddTranspose(data).collect
 
     println ("The number of rows of data transposed is " + datat.length)

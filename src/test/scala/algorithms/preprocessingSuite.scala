@@ -149,16 +149,16 @@ class preprocessingSuite extends FunSuite {
 
 
     println("%d dim %.3f seconds".format(num_features, (System.currentTimeMillis - start)/1000.0))
-    val localmat: Matrix =lds.DenseFeatureMatrix
-    println(localmat)
-    val localcov: BDM[Double] =brzCov(new BDM(localmat.numRows,localmat.numCols,localmat.toArray))
+    //val localmat: Matrix =lds.DenseFeatureMatrix
+    //println(localmat)
+    //val localcov: BDM[Double] =brzCov(new BDM(localmat.numRows,localmat.numCols,localmat.toArray))
 
-    println(localcov)
-    val firstelem: Array[Double] = distcomp.rows.map{ x=>x.toArray(0)}.collect
+    //println(localcov)
+    //val firstelem: Array[Double] = distcomp.rows.map{ x=>x.toArray(0)}.collect
 
 
-    (0 until 100).foreach{i=>
-    println(firstelem(i) + " vs " + localcov(i,0) )}
+    //(0 until 100).foreach{i=>
+   // println(firstelem(i) + " vs " + localcov(i,0) )}
 
     sc.stop()
 

@@ -1,0 +1,243 @@
+package algorithms
+
+import akka.actor.ActorSystem
+import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
+import breeze.stats.distributions.Gaussian
+import org.apache.log4j.{Level, Logger}
+import org.apache.spark.mllib.linalg.{Matrices, Vectors}
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
+import org.apache.spark.{FutureAction, SparkConf, SparkContext}
+
+import scala.collection.mutable.ListBuffer
+import preprocessing._
+
+//import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
+
+
+/**
+  * Created by tonypark on 2016. 6. 26..
+  */
+object CovarianceMain {
+
+  def computeMeanShiftedMatrix(r:RDD[LabeledPoint],N: Int): RDD[Array[Float]] =
+  {
+    val colMean: Array[Double] = r
+      .map( x => x.features.toArray )
+      .reduce( _ + _ )
+      .map( x => x / N )
+
+    r.map( x => ( x.features.toArray - colMean ).map(elem => elem.toFloat))
+
+  }
+
+  def exPartitionBy(MeanShiftedMat:RDD[Array[Float]],N: Int, P: Int,num_partitions:Int)
+  = {
+    val blokRDD: RDD[(Long, Array[Float])] = MeanShiftedMat
+      .zipWithIndex().map{case (v,k)=>(k,v)}
+      .partitionBy(new MyPartitioner( num_partitions, P)).persist(StorageLevel.MEMORY_AND_DISK)
+    blokRDD
+  }
+
+  def exPartitionMap1(blokRDD:RDD[(Long, Array[Float])],num_partitions:Int,num_features:Int)
+  : RDD[(Int, BDM[Float])] = {
+    val sc = blokRDD.sparkContext
+
+    val Buff1 = new ListBuffer[(Int, BDM[Float])]
+    val rownum= num_features/num_partitions
+    val res1
+    = blokRDD.mapPartitionsWithIndex({ (indx, itr) => {
+      val bbb: BDM[Float] =BDM.zeros[Float](rownum,num_features)
+      itr.foreach{ case (row,arr)=>
+        val ccc: BDV[Float] =BDV(arr)
+        bbb((row%rownum).toInt,::) := ccc.t
+      }
+      Buff1 += ((indx, bbb))
+    }.toIterator.take(num_partitions)
+    }, true)
+    res1
+  }
+  def main(args: Array[String]): Unit = {
+
+
+    Logger.getLogger("org").setLevel(Level.WARN)
+
+    val sc = new SparkContext(new SparkConf()
+      //.setMaster("local[*]").setAppName("PCAExampleTest")
+      .set("spark.scheduler.mode", "FAIR")
+      .set("spark.driver.maxResultSize", "90g")
+      .set("spark.akka.timeout", "2000000")
+      .set("spark.worker.timeout", "5000000")
+      .set("spark.storage.blockManagerSlaveTimeoutMs", "5000000")
+      .set("spark.akka.frameSize", "2047")
+      .set("spark.akka.threads", "12")
+      .set("spark.network.timeout", "600")
+      .set("spark.rpc.askTimeout", "600")
+      .set("spark.rpc.lookupTimeout", "600")
+      .set("spark.network.timeout", "10000000")
+      .set("spark.executor.heartbeatInterval", "10000000"))
+
+
+    var num_features: Int = 10000
+    var num_samples: Int = 10000
+    var num_bins: Int = 20
+    var num_new_partitions: Int = 5
+
+    if (!args.isEmpty) {
+
+      num_features = args(0).toString.toInt
+      num_samples = args(1).toString.toInt
+      num_bins = args(2).toString.toInt
+      num_new_partitions = args(3).toString.toInt
+
+    }
+
+    val recordsPerPartition: Int = num_samples / num_new_partitions
+    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
+      .mapPartitionsWithIndex { (idx, iter) => {
+        val gauss: Gaussian = new Gaussian(0.0, 1.0)
+        (1 to recordsPerPartition).map { i =>
+          new LabeledPoint(idx, Vectors.dense(gauss.sample(num_features).toArray))
+        }
+      }.toIterator
+      }
+
+
+    println(" ************* begin *********************")
+    val start = System.currentTimeMillis()
+
+    val msm: RDD[Array[Float]] = computeMeanShiftedMatrix(lds, num_samples)
+
+    val bb: RDD[(Long, Array[Float])] =
+      exPartitionBy(msm, num_samples, num_features, num_new_partitions)
+
+    val cc: RDD[(Int, BDM[Float])] = exPartitionMap1(bb, num_new_partitions, num_features)
+
+
+
+    //This code is the working one with 100000 and 1000 partitions fast
+
+
+    //for {ee<-eefut} yield(ee)
+
+
+    //ee.foreach(println)
+    /*val res: Array[(Int, Int, BDM[Float])]
+    = ee.map{case (part1, seq1)=>
+      val bro =sc.broadcast(seq1)
+      val bropart1 = sc.broadcast(part1)
+      val Buf = new ListBuffer[(Int,Int,BDM[Float])]
+      cc.flatMap{ case (part2, seq2) =>
+        if (bropart1.value <= part2) {
+          val seq: BDM[Float] = bro.value
+          val mul: BDM[Float] = seq * seq1.t
+          Buf += ((part2,bropart1.value, mul))
+        }else
+        { val mul = BDM.zeros[Float](1,1)
+          Buf += ((part2,bropart1.value, mul))
+        }
+      }
+    val all = BDM.zeros[Float](num_features,num_samples)
+    val rownum: Int = num_features/num_new_partitions
+    res.foreach { x =>
+      x.collect.foreach { case (i, j, mat) =>
+        //println(i*rownum, (i+1)*rownum - 1)
+        if (i >= j) {
+          all(i * rownum to (i + 1) * rownum - 1,
+            j * rownum to (j + 1) * rownum - 1) := mat
+        }
+      }
+    }
+
+
+
+    }*/
+    /*
+    val res: RDD[(Int, BDM[Float])]
+    =sc.parallelize(ee.map{case (part1, seq1)=>
+      val bro =sc.broadcast(seq1)
+      val bropart1 = sc.broadcast(part1)
+      val param=sc.broadcast(num_features,num_new_partitions,num_samples)
+      val sc1=
+      val comp =cc.map{ case (part2, seq2) =>
+        val elemperblock=param.value._1/param.value._2
+        val all = BDM.zeros[Float](elemperblock,param.value._3)
+        if (bropart1.value >= part2) {
+          val part1 = bropart1.value
+          val seq: BDM[Float] = bro.value
+          val mul: BDM[Float] = seq * seq1.t
+          all(::,part2*elemperblock to (part2+1)*elemperblock-1) :=  mul
+        }
+      all
+      }.take(1)(0)
+      (part1,comp)
+    })
+*/
+
+
+    // not working example
+    /*
+    val res: RDD[(Int, BDM[Float])]
+    = sc.parallelize( IndexedSeq[(Int, BDM[Float])](), num_new_partitions)
+      .mapPartitionsWithIndex { case (idx, iter) => {
+        val part1 = ee(idx)._1
+        val seq1 = ee(idx)._2
+        val bro = sc.broadcast(seq1)
+        val bropart1 = sc.broadcast(part1)
+        val param = sc.broadcast(num_features, num_new_partitions, num_samples)
+        val Buf = new ListBuffer[(Int, BDM[Float])]
+
+
+        //val all = BDM.zeros[Float](num_features / num_new_partitions, param.value._3)
+        val res: BDM[Float] =cc.map {
+          case (part2, seq2) =>
+            val elemperblock = param.value._1 / param.value._2
+            val all = BDM.zeros[Float](elemperblock, param.value._3)
+            if (bropart1.value >= part2) {
+              val part1 = bropart1.value
+              val seq: BDM[Float] = bro.value
+              val mul: BDM[Float] = seq * seq1.t
+              all(::, part2 * elemperblock to (part2 + 1) * elemperblock - 1) := mul
+            }
+            all
+        }.reduce(_:+_)
+        Buf +=((part1, res))
+      }.toIterator
+      }
+
+        */
+
+
+    implicit val context = ExecutionContext.Implicits.global
+     val res = sc.parallelize(cc.collect.map { case (part1, seq1) =>
+       val bro = sc.broadcast(seq1,part1)
+       val block = cc.map { case (part2, seq2) =>
+         if(bro.value._2>=part2) {
+           bro.value._1 * seq2.t
+         }else{null}
+       }.reduce((a,b) =>
+         if (b!=null && a!=null) BDM.horzcat(a,b)
+         else if (b==null) a
+         else b)
+       (part1, block)
+    })
+
+    res.foreach{ z =>
+      println("\n  x:" + z._1.toString + "\n" + z._2 + "\n")
+
+    }
+
+
+    println("%d dim %.3f seconds".format(num_features, (System.currentTimeMillis - start)/1000.0))
+
+    println("*******************************************\n")
+    println(" Number of features : " + num_features)
+    println(" Number of partitions : " + num_new_partitions)
+
+    sc.stop()
+
+  }
+
+}

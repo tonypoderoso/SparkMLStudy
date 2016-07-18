@@ -10,7 +10,7 @@ import org.apache.spark.mllib.linalg.distributed.{CoordinateMatrix, MatrixEntry,
 /**
   * Created by tonyp on 2016-05-04.
   */
-class IncrementalPCA {
+class IncrementalPCA(temp:String) {
 
   def toBreeze(rm: RowMatrix): BDM[Double] = {
     val m = rm.numRows().toInt
