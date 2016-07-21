@@ -54,7 +54,7 @@ object SparkMLRandomForestTest {  //{extends FunSuite{
 
   def main(args:Array[String]): Unit = {
     val sc = new SparkContext(new SparkConf()
-      //.setMaster("local[*]")
+      .setMaster("local[*]")
       .setAppName("Random Forest")
       .set("spark.driver.maxResultSize", "40g")
       .set("spark.akka.timeout","20000")
@@ -67,8 +67,9 @@ object SparkMLRandomForestTest {  //{extends FunSuite{
 
     var num_features:Int =100
     var num_samples:Int =100000
-    var num_bins:Int = 200
-    var num_new_partitions:Int = 5*16
+    var num_bins:Int = 20
+    var num_new_partitions:Int = 5
+    var num_selection=10
 
     if (!args.isEmpty){
 
@@ -80,24 +81,43 @@ object SparkMLRandomForestTest {  //{extends FunSuite{
     }
     // Distributed Data generation
     //************************************************
-    val recordsPerPartition: Int = num_samples/num_new_partitions
+    val recordsPerPartition: Int = num_samples / num_new_partitions
+
+    val r = scala.util.Random
+    val weights: BDV[Double] =BDV.zeros[Double](num_features-1)
+    val arr=BDV.zeros[Int](num_selection)
+    var cnt = 0
+    while (cnt < num_selection) {
+      val idx = r.nextInt(num_features-1)
+      if (weights(idx) == 0){
+        weights(idx) = r.nextInt(100)*2 - 100
+        arr(cnt)=idx
+        cnt += 1
+        print(idx + ",")
+      }
+    }
+    val w = weights
+    val mask =w.map{ i=>if (i==0) 0.0 else 1}
+    val negmask = w.map{i=>if (i==0) 1 else 0.0}
 
 
-    val noise = 0.1
-    val gauss = new Gaussian(0.0,1.0)
-    val weights: Array[Double] = gauss.sample(num_features).toArray
-    val w = BDV(weights)
 
-    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](),num_new_partitions)
+    //val noise = 0.1
+    //val gauss = new Gaussian(1.0, 1.0)
+    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
       .mapPartitions { _ => {
-        val gauss=new Gaussian(0.0,1.0)
+        val gauss = new Gaussian(10.0, 10.0)
         (1 to recordsPerPartition).map { _ =>
-          val x = BDV(gauss.sample(num_features).toArray)
-          val l = x.dot(w) + gauss.sample() * noise
-          new LabeledPoint(l, Vectors.dense(x.toArray))
+          val x = BDV(gauss.sample(num_features-1).toArray)
+          val l = x.dot(w) //+ gauss.sample() * noise * 0.01
+        val noise = scala.util.Random.nextDouble*1
+          val noise1 =BDV( (0 until num_features).map{ _ => scala.util.Random.nextDouble*100}.toArray)
+          val feat = Vectors.dense(( ( x:* mask) :+ (noise * negmask)).toArray )
+          new LabeledPoint( l , feat )
         }
       }.toIterator
       }
+
 
 
     val rf= new RandomForestRegressor()
