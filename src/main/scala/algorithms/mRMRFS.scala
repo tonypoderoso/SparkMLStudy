@@ -458,60 +458,62 @@ object mRMRFS {
     //.set("spark.akka.heartbeat.interval","4000s")
     //.set("spark.akka.heartbeat.pauses","2000s"))
     //val sc = new SparkContext(new SparkConf().setMaster("local[*]").setAppName("Test"))
-    var num_features: Int = 100
-    var num_samples: Int = 100000
-    var num_bins: Int = 200
-    var num_new_partitions: Int = 5
-    var num_selection = 10
-
-    if (!args.isEmpty) {
-
-      num_features = args(0).toString.toInt
-      num_samples = args(1).toString.toInt
-      num_bins = args(2).toString.toInt
-      num_selection=args(3).toString.toInt
-      num_new_partitions = args(4).toString.toInt
-
-    }
-
-    Logger.getLogger("org").setLevel(Level.ERROR)
 
 
-    // Distributed processing
-    //************************************************
-    val recordsPerPartition: Int = num_samples / num_new_partitions
+      var num_features: Int = 100
+      var num_samples: Int = 100000
+      var num_bins: Int = 200
+      var num_new_partitions: Int = 5
+      var num_selection = 10
 
+      if (!args.isEmpty) {
 
+        num_features = args(0).toString.toInt
+        num_samples = args(1).toString.toInt
+        num_bins = args(2).toString.toInt
+        num_selection = args(3).toString.toInt
+        num_new_partitions = args(4).toString.toInt
 
-    //val weights: Array[Double] = gauss.sample(num_features).toArray
-
-    val r = scala.util.Random
-    val weights: BDV[Double] =BDV.zeros[Double](num_features-1) //BDV.rand(num_features,Rand.uniform).map(x=> x*200-100 )
-    val arr=BDV.zeros[Int](num_selection)
-    var cnt = 0
-    while (cnt < num_selection) {
-      val idx = r.nextInt(num_features-1)
-      if (weights(idx) == 0){
-        weights(idx) = r.nextInt(100)*2 - 100
-        arr(cnt)=idx
-        cnt += 1
       }
-    }
-    val w = weights
+
+      Logger.getLogger("org").setLevel(Level.ERROR)
 
 
-    //val noise = 0.1
-    //val gauss = new Gaussian(1.0, 1.0)
-    val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
-      .mapPartitions { _ => {
-        val gauss = new Gaussian(10.0, 10.0)
-        (1 to recordsPerPartition).map { _ =>
-          val x = BDV(gauss.sample(num_features-1).toArray)
-          val l = x.dot(w) //+ gauss.sample() * noise * 0.01
-          new LabeledPoint(l, Vectors.dense(x.toArray))
+      // Distributed processing
+      //************************************************
+      val recordsPerPartition: Int = num_samples / num_new_partitions
+
+
+
+      //val weights: Array[Double] = gauss.sample(num_features).toArray
+
+      val r = scala.util.Random
+      val weights: BDV[Double] = BDV.zeros[Double](num_features - 1) //BDV.rand(num_features,Rand.uniform).map(x=> x*200-100 )
+      val arr = BDV.zeros[Int](num_selection)
+      var cnt = 0
+      while (cnt < num_selection) {
+        val idx = r.nextInt(num_features - 1)
+        if (weights(idx) == 0) {
+          weights(idx) = r.nextInt(100) * 2 - 100
+          arr(cnt) = idx
+          cnt += 1
         }
-      }.toIterator
       }
+      val w = weights
+
+
+      //val noise = 0.1
+      //val gauss = new Gaussian(1.0, 1.0)
+      val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
+        .mapPartitions { _ => {
+          val gauss = new Gaussian(10.0, 10.0)
+          (1 to recordsPerPartition).map { _ =>
+            val x = BDV(gauss.sample(num_features - 1).toArray)
+            val l = x.dot(w) //+ gauss.sample() * noise * 0.01
+            new LabeledPoint(l, Vectors.dense(x.toArray))
+          }
+        }.toIterator
+        }
 
     val mi = new MutualInformation
 

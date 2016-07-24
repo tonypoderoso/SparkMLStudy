@@ -6,7 +6,6 @@ import breeze.stats.distributions.Gaussian
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.mllib.linalg.{Matrices, Vectors}
 import org.apache.spark.mllib.regression.LabeledPoint
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{FutureAction, SparkConf, SparkContext}
@@ -14,9 +13,8 @@ import org.apache.spark.{FutureAction, SparkConf, SparkContext}
 import scala.collection.mutable.ListBuffer
 import preprocessing._
 
-
-
 import scala.collection.immutable.IndexedSeq
+import scala.collection.parallel.ParSeq
 
 
 
@@ -71,7 +69,7 @@ object CovarianceMain {
 
     val sc = new SparkContext(new SparkConf()
       //.setMaster("local[*]").setAppName("PCAExampleTest")
-      .set("spark.scheduler.mode", "FAIR")
+      //.set("spark.scheduler.mode", "FAIR")
       .set("spark.driver.maxResultSize", "90g")
       .set("spark.akka.timeout", "2000000")
       .set("spark.worker.timeout", "5000000")
@@ -82,7 +80,8 @@ object CovarianceMain {
       .set("spark.rpc.askTimeout", "7200000")
       .set("spark.rpc.lookupTimeout", "7200000")
       .set("spark.network.timeout", "10000000")
-      .set("spark.executor.heartbeatInterval", "1000"))
+      .set("spark.executor.heartbeatInterval", "1000")
+      .set("scala.concurrent.context.maxThreads","2"))
 
 
     var num_features: Int = 1000
@@ -136,21 +135,25 @@ object CovarianceMain {
       //ee.foreach{case(i,j)=> println(i);println(j)}
     }
 
+    val aaaaa: ParSeq[(Int, BDM[Float])] = dd.par
+
     println(" the length of dd " + dd.length)
-     val res: RDD[(Int, BDM[Float])] = sc.parallelize(dd.map { case (part1, seq1) =>
-       val bro = sc.broadcast(seq1,part1)
-       val block: BDM[Float] = cc.map { case (part2, seq2) =>
-         if(bro.value._2 <= part2) {
-           bro.value._1 * seq2.t
-         }else null
-       }.reduce((a,b) =>
-         if (b.isInstanceOf[BDM[Float]] && a.isInstanceOf[BDM[Float]])  BDM.horzcat(a,b)
-         else if (!a.isInstanceOf[BDM[Float]] && b.isInstanceOf[BDM[Float]]) b
-         else if (!b.isInstanceOf[BDM[Float]] && a.isInstanceOf[BDM[Float]]) a
-         else null
-       )
-       (part1, block)
-    },dd.length)
+     val res: RDD[(Int, BDM[Float])] = sc.parallelize({
+       dd.par.map { case (part1, seq1) =>
+         val bro = sc.broadcast(seq1, part1)
+         val block: BDM[Float] = cc.map { case (part2, seq2) =>
+           if (bro.value._2 <= part2) {
+             bro.value._1 * seq2.t
+           } else null
+         }.reduce((a, b) =>
+           if (b.isInstanceOf[BDM[Float]] && a.isInstanceOf[BDM[Float]]) BDM.horzcat(a, b)
+           else if (!a.isInstanceOf[BDM[Float]] && b.isInstanceOf[BDM[Float]]) b
+           else if (!b.isInstanceOf[BDM[Float]] && a.isInstanceOf[BDM[Float]]) a
+           else null
+         )
+         (part1, block)
+       }
+     }.toList, dd.length)
     //implicit val context = ExecutionContext.Implicits.global
     println(res.getNumPartitions)
 
