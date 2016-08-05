@@ -1,10 +1,12 @@
 package algorithms
 
+
+
 /**
   * Created by tony on 16. 7. 18.
   */
-import breeze.linalg.{Axis, Transpose, argsort, max, min, DenseMatrix => BDM, DenseVector => BDV, argmax => brzArgmax, argmin => brzArgmin, sum => brzSum}
-import breeze.linalg.{Axis, DenseMatrix, DenseVector, Transpose}
+import breeze.linalg.{Axis, max, min, DenseMatrix => BDM, DenseVector => BDV, argmax => brzArgmax,
+               argmin => brzArgmin, sum => brzSum}
 import breeze.numerics._
 import breeze.stats.distributions.Gaussian
 import org.apache.log4j.{Level, Logger}
@@ -25,7 +27,7 @@ import scala.collection.mutable.ListBuffer
 /**
   * Created by tonypark on 2016. 6. 13..
   */
-object mRMRFS2 {
+object mRMTRFS {
 
 
   def readFromFile(sc:SparkContext,fname:String,lname:String,num_partitions:Int) = {
@@ -85,7 +87,7 @@ object mRMRFS2 {
 
 
   def computeEntropyVector( a1: RDD[(Array[Int], Long)],
-                      num_state1: Int, num_state2: Int):  Array[Double] = {
+                            num_state1: Int, num_state2: Int):  Array[Double] = {
 
 
     val computeEntropy: ((Array[Int], Long)) => ListBuffer[Double]
@@ -112,12 +114,12 @@ object mRMRFS2 {
 
     }.sorted.map(x => x._2)
 
-     a1.flatMap(computeEntropy).collect
+    a1.flatMap(computeEntropy).collect
 
   }
 
   def computeMIVector(b: (Array[Int], Long), a1: RDD[(Array[Int], Long)],
-                      num_state1: Int, num_state2: Int): (Long, Array[Double]) = {
+    num_state1: Int, num_state2: Int): (Long, Array[Double]) = {
 
     val sc = a1.context
     val onerow = sc.broadcast(b)
@@ -150,8 +152,52 @@ object mRMRFS2 {
     (onerow.value._2, a1.flatMap(computeMutualInformation2).collect)
     //a1.flatMap(computeMutualInformation2)
   }
+
+  def computeJMIVector(b: (Array[Int], Long), a1: RDD[(Array[Int], Long)],Pa:Array[Int]
+                       ,num_state1: Int, num_state2: Int): (Long, Array[Double]) = {
+
+    val sc = a1.context
+    val onerow = sc.broadcast(b)
+    val pa =sc.broadcast(Pa)
+
+
+        val computeJMI1 = (input: ((Array[Int], Long))) =>  {{
+
+        val buf = new ListBuffer[(Long, Double)]()
+        val col = input._2
+        val output: Array[BDM[Int]] = Array.fill(num_state1)(BDM.zeros[Int](num_state2, num_state1))
+        val count = BDV.zeros[Int](num_state1)
+
+        pa.value.zip(input._1).zip(onerow.value._1).map { x =>
+          output(x._2)(x._1._1 - 1, x._1._2 - 1) += 1
+          count(x._2) += 1
+        }
+
+        val res1 = output.zip(count.toArray).map{ case(bdm,countvalue) =>
+            val rsum: BDV[Int] = brzSum(bdm,Axis._1)
+            val csum: BDV[Int] = brzSum(bdm,Axis._0).toDenseVector
+            val msum: Int = brzSum(rsum)
+
+            bdm.mapPairs { case ((i, j), x) =>
+              if (x > 0) {
+                val tmp = msum.toDouble / (rsum(i) * csum(j))
+                println("tmp; " + tmp)
+                x * math.log(x * tmp) / math.log(2)
+              }else  0
+              }.toArray.sum/msum * countvalue /  msum
+
+        }.reduce(_+_)
+
+       buf +=((col, res1))
+      }.sorted.map(x => x._2)}
+
+
+    (onerow.value._2, a1.flatMap(computeJMI1).collect)
+
+  }
+
   def computemRMTR(label:Array[Int],in: RDD[Array[Int]], number_of_features: Int, label_state: Int,
-                 feature_state: Int) = {
+                   feature_state: Int) = {
 
     val sc = in.sparkContext
     val a1: RDD[(Array[Int], Long)] = in.zipWithIndex().persist
@@ -161,37 +207,78 @@ object mRMRFS2 {
     val selected: BDV[Double] = BDV.ones[Double](num_feat)
     val MIScore = BDM.zeros[Double](number_of_features, num_feat)
     val mrMRMatrix = BDM.zeros[Double](number_of_features, num_feat)
-    val res:  Array[Double] = computeEntropyVector(a1, feature_state, feature_state)
-    val rel = BDV(res)
+    val res= computeMIVector((label,1L),a1, label_state, feature_state)
+    val rel = BDV(res._2)
+    val score: BDV[Double] = BDV.zeros[Double](number_of_features)
+
+
     rel.foreach(x=>print(x +","))
-    mRMRSorting(0) = brzArgmax(res)
+    mRMRSorting(0) = brzArgmax(rel)
     selected(mRMRSorting(0)) = 0 //Double.MaxValue
 
+
+    var prev: BDV[Double] = rel /(brzSum(rel)* max(rel))
+    score(0)=prev(mRMRSorting(0))
+    //tmp.foreach(x=>print(x+","))
 
     (1 until number_of_features).map { indx =>
 
 
-      val res1: (Long, Array[Double]) = computeMIVector(a(mRMRSorting(indx-1)), a1,feature_state, feature_state)
+      val res1: (Long, Array[Double]) = computeJMIVector(a(mRMRSorting(indx-1)), a1,label, feature_state, label_state)
 
-      MIScore(indx-1, ::) := BDV(res1._2).t
+      MIScore(indx-1, ::) := (BDV(res1._2 ) :+ rel(mRMRSorting(indx-1))).t
 
       val redvector: BDV[Double] = brzSum(MIScore(0 until indx, ::), Axis._0).toDenseVector.map { x => x / (indx) }
 
-      val relvector: BDV[Double] = ((rel :/ redvector) :* selected)
+      //val relvector: BDV[Double] = ((rel :/ redvector) :* selected)
 
-      mrMRMatrix(indx-1,::)  :=((rel :/ redvector) :* selected).t
+      mrMRMatrix(indx-1,::)  :=((redvector) :* selected).t
 
-      mRMRSorting(indx) = brzArgmax(relvector )
+      mRMRSorting(indx) = brzArgmax(redvector :* selected )
 
       selected(mRMRSorting(indx)) = 0
 
+      score(indx)=prev(mRMRSorting(indx))
+      val tmp = redvector :*selected
+      prev = tmp /max(tmp)*score(indx)*score(indx)/score(indx-1)
+
+
     }
+
+    val score_out: BDV[Double] = BDV.fill(number_of_features){-1.0} :/ log(score)
+
+
+    println("The score")
+
+    score_out.foreach(x=>print(x+","))
+    println()
+    println("End of the score")
+
+    rel.foreach(x=>print(x+","))
+
+    for (i <- 0 until MIScore.rows){
+      for (j<- 0 until MIScore.cols){
+        print(MIScore(i,j)+",")
+      }
+      println()
+    }
+
+    println("____________________")
+
+    println("____________________")
+    for (i <- 0 until MIScore.rows){
+      for (j<- 0 until MIScore.cols){
+        print(mrMRMatrix(i,j)+",")
+      }
+      println()
+    }
+
 
     println("The Important features are : " + mRMRSorting.map(x => (x+1).toString + ",").reduce(_ + _))
 
   }
   def computeMIQ(label:Array[Int],in: RDD[Array[Int]], number_of_features: Int, label_state: Int,
-                                   feature_state: Int) = {
+                 feature_state: Int) = {
 
     val sc = in.sparkContext
     val a1: RDD[(Array[Int], Long)] = in.zipWithIndex().persist
@@ -226,6 +313,7 @@ object mRMRFS2 {
       selected(mRMRSorting(indx)) = 0
 
     }
+
 
     println("The Important features are : " + mRMRSorting.map(x => (x+1).toString + ",").reduce(_ + _))
 
@@ -474,14 +562,14 @@ object mRMRFS2 {
     //val lds: RDD[LabeledPoint] = generateRegerssionData(sc,num_samples,num_features,num_selection,num_new_partitions).cache()
 
 
-//    val ffd = featureFromDataset(lds, 1)
+    //    val ffd = featureFromDataset(lds, 1)
 
     //println("2.ffd : " +ffd.getNumPartitions)
 
-  //  val ffdt = rddTranspose(ffd)
+    //  val ffdt = rddTranspose(ffd)
     //println("3.ffdt: "+ffdt.getNumPartitions)
 
-  //  val trans = normalizeToUnitT(ffdt)
+    //  val trans = normalizeToUnitT(ffdt)
 
     //println("4. trans: "+  trans.getNumPartitions)
 

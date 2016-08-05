@@ -40,7 +40,7 @@ object CovarianceMain {
     MeanShiftedMat
       .zipWithIndex().map{case (v,k)=>(k,v)}
       .partitionBy(new MyPartitioner( num_partitions, P))
-      .persist(StorageLevel.MEMORY_AND_DISK)
+      .persist(StorageLevel.MEMORY_ONLY)
   }
 
   def exPartitionMap1(blokRDD:RDD[(Long, Array[Float])],
@@ -58,34 +58,34 @@ object CovarianceMain {
         bbb((row%rownum).toInt,::) := ccc.t
       }
       Buff1 += ((indx, bbb))
-    }.toIterator.take(num_partitions)
+    }.toIterator//.take(num_partitions)
     }, true)
   }
 
   def main(args: Array[String]): Unit = {
 
 
-    Logger.getLogger("org").setLevel(Level.WARN)
+    //Logger.getLogger("org").setLevel(Level.WARN)
 
     val sc = new SparkContext(new SparkConf()
       //.setMaster("local[*]").setAppName("PCAExampleTest")
       //.set("spark.scheduler.mode", "FAIR")
-      .set("spark.driver.maxResultSize", "90g")
+      .set("spark.driver.maxResultSize", "220g")
       .set("spark.akka.timeout", "2000000")
       .set("spark.worker.timeout", "5000000")
       .set("spark.storage.blockManagerSlaveTimeoutMs", "5000000")
       .set("spark.akka.frameSize", "2047")
-      .set("spark.akka.threads", "12")
-      //.set("spark.network.timeout", "7200000")
+      .set("spark.akka.threads", "16")
+      .set("spark.network.timeout", "7200000")
       .set("spark.rpc.askTimeout", "7200000")
       .set("spark.rpc.lookupTimeout", "7200000")
       .set("spark.network.timeout", "10000000")
-      .set("spark.executor.heartbeatInterval", "1000")
-      .set("scala.concurrent.context.maxThreads","2"))
+      .set("spark.executor.heartbeatInterval", "10000")
+      .set("scala.concurrent.context.maxThreads","8"))
 
 
-    var num_features: Int = 1000
-    var num_samples: Int = 1000
+    var num_features: Int = 5000
+    var num_samples: Int = 5000
     var num_bins: Int = 20
     var num_new_partitions: Int = 100
     var num_partsum:Int = 10
@@ -110,39 +110,43 @@ object CovarianceMain {
       }.toIterator
       }
 
-     println("the number of partiotion of lds : "+lds.getNumPartitions)
+     //println("the number of partiotion of lds : "+lds.getNumPartitions)
     //println(" ************* begin *********************")
-    val start = System.currentTimeMillis()
+    //val start = System.currentTimeMillis()
+
 
     val msm: RDD[Array[Float]] = computeMeanShiftedMatrix(lds, num_samples)
+
+    lds.unpersist()
+
 
     val bb: RDD[(Long, Array[Float])] =
       exPartitionBy(msm, num_samples, num_features, num_new_partitions)
 
+    msm.unpersist()
+
     val cc: RDD[(Int, BDM[Float])] =
-      exPartitionMap1(bb, num_new_partitions, num_features)
-    println("the number of partiotion of cc : "+lds.getNumPartitions)
+      exPartitionMap1(bb, num_new_partitions, num_features).cache()
+    //println("the number of partiotion of cc : "+lds.getNumPartitions)
 
     //val cc1 = exPartitionMap1(bb,num_new_partitions/num_partsum,num_features)
 
     var dd: Seq[(Int, BDM[Float])] = cc.collectAsync().get().sortBy(x=>x._1)
 
     if (num_partsum>1) {
-       dd = (0 until dd.length by num_partsum).map { i =>
+       dd = (0 until dd.length by num_partsum).par.map { i =>
         (i + num_partsum - 1, (0 until num_partsum).map(j =>
           dd(i + j)._2).reduce(BDM.vertcat(_, _)))
-      }
-      //ee.foreach{case(i,j)=> println(i);println(j)}
+      }.toList
     }
 
-    val aaaaa: ParSeq[(Int, BDM[Float])] = dd.par
 
-    println(" the length of dd " + dd.length)
-     val res: RDD[(Int, BDM[Float])] = sc.parallelize({
-       dd.par.map { case (part1, seq1) =>
+    //println(" the length of dd " + dd.length)
+     //val res: RDD[(Int, BDM[Float])] = sc.parallelize({
+     val res: List[(Int, BDM[Float])] =  dd.par.map { case (part1, seq1) =>
          val bro = sc.broadcast(seq1, part1)
          val block: BDM[Float] = cc.map { case (part2, seq2) =>
-           if (bro.value._2 <= part2) {
+           if (bro.value._2 >= part2) {
              bro.value._1 * seq2.t
            } else null
          }.reduce((a, b) =>
@@ -152,13 +156,13 @@ object CovarianceMain {
            else null
          )
          (part1, block)
-       }
-     }.toList, dd.length)
+       }.toList
+     //}.toList//)
     //implicit val context = ExecutionContext.Implicits.global
-    println(res.getNumPartitions)
+    //println(res.getNumPartitions)
 
-    println("The number of res partitions: " + res.getNumPartitions)
-    res.saveAsTextFile("result" + System.currentTimeMillis().toString)
+    //println("The number of res partitions: " + res.getNumPartitions)
+    sc.parallelize(res).saveAsTextFile("result" + System.currentTimeMillis().toString)
     //res.foreachAsync{ z =>
     // println("\n  x:" + z._1.toString + "\n" + z._2 + "\n")
     //}.get()

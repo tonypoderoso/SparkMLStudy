@@ -1,6 +1,5 @@
 package algorithms
 
-import akka.actor.ActorSystem
 import breeze.linalg.{min, DenseMatrix => BDM, DenseVector => BDV}
 import breeze.stats.distributions.Gaussian
 import org.apache.log4j.{Level, Logger}

@@ -287,8 +287,8 @@ object LinearExampleDatasetDistributed2 {
 
         println("Rows with " + T + " NaNs will be removed.")
 
-        val rowCountNaN: Array[Double] = r
-          .map( x => x.features.toArray.map( y => if (y.equals(Double.NaN)) 1.0 else 0.0 ).sum ).toArray()
+        val rowCountNaN = r
+          .map( x => x.features.toArray.map( y => if (y.equals(Double.NaN)) 1.0 else 0.0 ).sum )
 
        // println(rowCountNaN.zipWithIndex.filterNot( _._1 < T ).map( _._2 ).mkString(",")
        //   + "-th row(s) have been removed.")

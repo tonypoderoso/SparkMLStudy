@@ -96,8 +96,8 @@ def main(args:Array[String]):Unit ={
   // If we serialize data directly in the task closure, the size of the serialized task would be
   // greater than 1MB and hence Spark would throw an error.
   val model = SVMWithSGD.train(points, 2)
-  val predictions: Array[Double] = model.predict(points.map(_.features)).toArray
-  val inputclass: Array[Double] = points.map(_.label).toArray
+  val predictions: Array[Double] = model.predict(points.map(_.features)).collect
+  val inputclass: Array[Double] = points.map(_.label).collect
 
 
   val accu = (0 until num_samples).map{i => abs(predictions(i)-inputclass(i))

@@ -472,7 +472,7 @@ object mRMRFS1 {
     val df:DataFrame = setMetadata(lds,categoricalFeatures,0)
     val model = rf.fit(df)
 
-    val importances: Vector = model.featureImportances
+    val importances = model.featureImportances
     val mostImportantFeature: Int = importances.argmax
     println("The most important feature  is " + mostImportantFeature)
 
