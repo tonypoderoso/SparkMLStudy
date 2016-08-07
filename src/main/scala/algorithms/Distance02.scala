@@ -1,30 +1,23 @@
-
-
 package algorithms
 
-
-import breeze.linalg.{Axis, min, sum, DenseMatrix => BDM, DenseVector => BDV}
+import algorithms.preprocessing._
+import breeze.linalg.{Axis, sum, DenseMatrix => BDM, DenseVector => BDV}
 import breeze.stats.distributions.Gaussian
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.mllib.linalg.{Matrices, Vector, Vectors}
+import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{AccumulatorParam, FutureAction, SparkConf, SparkContext}
+import org.apache.spark.{SparkConf, SparkContext}
 
+import scala.collection.immutable.IndexedSeq
 import scala.collection.mutable.ListBuffer
-import preprocessing._
-
-import scala.collection.immutable.{IndexedSeq, Range}
-
-
 
 
 /**
   * Created by tonypark on 2016. 6. 26..
   */
-object Distance{
+object Distance02 {
 
   def computeMeanShiftedMatrix(r:RDD[LabeledPoint],N: Int): RDD[Array[Float]] =
   {
@@ -71,11 +64,12 @@ object Distance{
       } , true)
   }
 
+
   def main(args: Array[String]): Unit = {
 
     Logger.getLogger("org").setLevel(Level.WARN)
 
-    val sc = new SparkContext(new SparkConf())//.setMaster("local[*]").setAppName("PCAExampleTest"))
+    val sc = new SparkContext(new SparkConf())//setMaster("local[*]").setAppName("PCAExampleTest"))
 
     var num_features: Int = 1000
     var num_samples: Int = 1000
@@ -93,7 +87,7 @@ object Distance{
 
     }
 
-     val recordsPerPartition: Int = num_samples / num_new_partitions
+    val recordsPerPartition: Int = num_samples / num_new_partitions
     val lds: RDD[LabeledPoint] = sc.parallelize(IndexedSeq[LabeledPoint](), num_new_partitions)
       .mapPartitionsWithIndex { (idx, iter) => {
         val gauss: Gaussian = new Gaussian(0.0, 1.0)
@@ -103,39 +97,19 @@ object Distance{
       }.toIterator
       }.cache()
 
-    //al ldscol: Array[(Double, Vector)] =lds.collect.map{ elem=>
-     // (elem.label,elem.features)}
-
-    //println("\n Step1  : After making lds ")
-    //ldscol.foreach(x=>print("ind: "+ x._1.toInt + "=>" +x._2+"\n"))
-
 
     val start = System.currentTimeMillis()
 
     //val msm: RDD[Array[Float]] = computeMeanShiftedMatrix(lds, num_samples)
-    //println("\n Step2 : Before matrix msm")
     val msm: RDD[Array[Float]] = lds.map{ elem =>
       val aaa: Array[Float] =elem.features.toArray.map{ a=>
-          a.toFloat}
-      //println("idx1 : " +elem.label.toInt+ " => "+ aaa.map{x=>x + ","}.reduce(_+_))
-
-    aaa}
-    ///msm.collect
-    //println("\n  Step2 : After matrix msm")
+        a.toFloat}
+      aaa}
 
     val cc: RDD[(Int, BDM[Float])] =
       exPartitionMap(msm, num_new_partitions, num_features).cache()
 
-    //println("  Step3 : After matrix cc")
     var dd: Seq[(Int, BDM[Float])] = cc.collectAsync().get().sortBy(x=>x._1)
-
-    //println("\n  Step4 : After matrix dd")
-//    for (i<- 0 until dd.length) {
-//      println(dd(i)._1 + " : " + dd(i)._2)
-//    }
-
-
-    //println("number of dd rows " + dd.length)
 
     if (num_partsum>1) {
       dd = (0 until dd.length by num_partsum).par.map { i =>
@@ -146,74 +120,61 @@ object Distance{
       }.toList
     }
 
-    //println("\n  Step4 : After matrix new dd")
-//    for (i<- 0 until dd.length) {
-//      println(dd(i)._1 + " : " + dd(i)._2)
-//    }
-
-
 
     def distcompute1(a:BDM[Float],b:BDM[Float]) = {
-      //println( "the a : " +a.rows+" , "+ a.cols +" and "+ b.rows+ " , "+ b.cols)
-      val res1 =(0 until a.rows).map {i=>
+      (0 until a.rows).par.map {i=>
         val tmp = b  - BDM.tabulate[Float](b.rows,a.cols){
           case (_,j) => a(i,j)}
-       // println(tmp)
-        //println("ind: "+i+ " ," +tmp.rows +" , "+tmp.cols)
-        val res: BDM[Float] = sum(tmp :* tmp,Axis._1).toDenseMatrix
-        //println(res.size )
-        res
+        sum(tmp :* tmp,Axis._1).toDenseMatrix
       }.reduce((x,y) =>
-      BDM.vertcat(x,y))
-      //println("the vertcat result: "+res1.rows +"," +res1.cols)
-      res1
+        BDM.vertcat(x,y))
     }
 
+    def distcompute2(a:BDM[Float],b:BDM[Float]): BDM[Float] = {
+      val tmp: BDM[Float] =BDM.tabulate[Float](b.rows*a.rows,a.cols){
+        case(i,j)=> a((i/b.rows),j) - b(i%b.rows,j)
+      }
+      sum(tmp :* tmp,Axis._1).toDenseMatrix.t.reshape(a.rows,b.rows)
+    }
+    def distcompute3(a:BDM[Float],b:BDM[Float]) = {
+      BDM.tabulate[Float](a.rows,b.rows){
+        case(i,j) =>
+            val tmp = a(i, ::) - b(j, ::)
+            tmp * tmp.t
+      }
+    }
 
-    //println(" Before Distance Computation: " )
-    val res: List[(Int, BDM[Float])] = dd.flatMap { case (part1: Int, seq1: BDM[Float]) => {
+    def distcompute4(a:BDM[Float],b:BDM[Float]) = {
+      BDM.tabulate[Float](a.rows,b.rows){
+        case(i,j) =>
+          if (i>j) {
+            val tmp = a(i, ::) - b(j, ::)
+            tmp * tmp.t
+          }else 0.0.toFloat
+      }
+    }
+
+    val res: List[(Int, BDM[Float])] = dd.par.flatMap { case (part1: Int, seq1: BDM[Float]) => {
       val bro: Broadcast[(BDM[Float], Int)] = sc.broadcast(seq1, part1)
       val Buff1 = new ListBuffer[(Int, BDM[Float])]
-      val block: (Int, BDM[Float]) = cc.map {
+      val block: (Int, BDM[Float]) = cc.map{
         case (part2: Int, seq2: BDM[Float]) =>
-          if (bro.value._2 >= part2) {
-            val rrr = distcompute1(bro.value._1,seq2)
-            //println("\n The part : " +part1 + ","+ part2 +"\n matA \n"+bro.value._1+"\n matB \n"+seq2+"\nDistance \n"+rrr)
-            (part2,rrr)
+          if (bro.value._2 > part2) {
+            (part2, distcompute3(bro.value._1, seq2))
+          } else if (bro.value._2 == part2){
+            (part2, distcompute4(bro.value._1, seq2))
           } else {
             (part2,BDM.zeros[Float](bro.value._1.rows,seq2.rows))
           }
-      }//
-      // .collectAsync.get.sortBy(_._1)
-      .reduce { (a, b) =>
+      }.collectAsync.get.sortBy(_._1)
+        .reduce { (a, b) =>
         (0, BDM.horzcat(a._2, b._2))
       }
       Buff1 += ((part1, block._2))
     }.toIterator
     }.toList
 
-    //println(" After Distance Computation: " )
     println("Elased Time in seconds : "+(System.currentTimeMillis - start)/1000.0)
-
-//    val finalmat: BDM[Float] =res.map{case(idx,mat)=>
-//      println(idx)
-//      (0 until mat.rows).foreach{i=>
-//        (0 until mat.cols).foreach{j=>
-//        print(mat(i,j)+",")}
-//      println}
-//      mat}.reduce((a,b)=>BDM.vertcat(a,b))
-//
-//    val inputmatrix =dd.sortBy(_._1).map{case(idx,mat)=>
-//      //println(idx)
-//      mat}.reduce((a,b)=>BDM.vertcat(a,b))
-//
-//
-//
-//    //sc.parallelize(res.toList).saveAsTextFile("result" + System.currentTimeMillis().toString)
-//
-//    println(finalmat)
-//    println("+++++++++++++++++++++++++++++++++++++++++++++++")
-//    println(inputmatrix.toString(100,100))
 
     println("*******************************************\n")
     println(" Number of features : " + num_features)
@@ -226,23 +187,3 @@ object Distance{
 
 }
 
-/*    def repVec[T:ClassTag:Zero](in: BDV[T], nRow: Int): BDM[T] =
-    {
-      BDM.tabulate[T](nRow, in.size)({case (_, j) => in(j)})
-    }
-
-    def repMat[T:ClassTag:Zero](in: BDM[T], nRep: Int): BDM[T] =
-    {
-      BDM.tabulate[T](nRep, in.size)({case (_, j) => in(j)})
-    }*/
-
-/*def distcompute2(a:BDM[Float],b:BDM[Float]): BDM[Float] = {
-  var tmp=BDM.zeros[Float](,a.cols)
-  (1 to a.rows).map {i=>
-    tmp = BDM.vertcat(tmp,b)
-    val tmp: BDM[Float] = b //:- a(i)
-    tmp * tmp.t
-  }.reduce((x,y) =>
-    BDM.horzcat(x,y))
-}
-*/
